@@ -1,0 +1,11 @@
+results/
+inference/
+tb/
+wandb/
+*.pt
+*.pth
+*.ckpt
+*.npz
+*.log
+__pycache__/
+*.pyc

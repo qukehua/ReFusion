@@ -1,0 +1,30 @@
+dataset: 'harper3d'
+# 30hz: 25帧 = 0.83秒历史, 100帧 = 3.33秒预测
+t_his: 25
+t_pred: 100
+batch_size: 64
+num_epoch: 1501
+num_data_sample: 50000
+num_val_data_sample: 5000
+lr: 3.e-4
+n_pre: 20
+# Set to 'auto' to auto-construct based on fps
+multimodal_path: '/data3/user/qkh/DATASET/TransFusion/HARPER/t_his25_30hz_thre0.500_t_pred100_thre0.100_filtered.npz'
+data_candi_path: '/data3/user/qkh/DATASET/TransFusion/HARPER/data_candi_30hz_t_his25_t_pred100_skiprate20.npz'
+padding: 'LastFrame'
+Complete: True
+noise_steps: 1000
+ddim_timesteps: 100
+scheduler: 'Cosine'
+num_layers: 9
+num_heads: 8
+latent_dims: 512
+dropout: 0.2
+mod_train: 0.8
+mod_test: 1.0
+dct_norm_enable: False
+# Harper3D specific settings
+include_spot: False
+data_path: '/data3/user/qkh/HARPER/HARPER _3D panoptic'
+fps: '30hz'
+
