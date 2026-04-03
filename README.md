@@ -41,29 +41,29 @@ data
 
 Evaluate on HARPER:
 
-
 python main.py --cfg harper3d_30hz --mode eval --ckpt ./results/harper3d_30hz/models/best_ema.pt
 
+python main.py --cfg harper3d_120hz --mode eval --ckpt ./results/harper3d_120hz/models/best_ema.pt
 
-**Note**: We change the random seed to 6 instead of 0 for AMASS dataset to fairly compared with [BeLFusion](https://github.com/BarqueroGerman/BeLFusion). GPU is required for evaluation.
+
+
+
 
 ## ⏳ Training
-For training TransFusion from scratch for all three datasets, run the following scripts:
 
-python main.py --cfg h36m --mode train
+Training on HARPER:
 
-python main.py --cfg humaneva --mode train
+python main.py --cfg harper3d_30hz --mode train 
 
-python main.py --cfg amass --mode train --multimodal_threshold 0.4 --seed 6 --milestone [200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800]
+python main.py --cfg harper3d_120hz --mode train 
+
 
 ## 🎥 Visualization
 Run the following scripts for visualization purpose:
 
 python main.py --cfg h36m --mode pred --vis_row 3 --vis_col 10 --ckpt ./checkpoints/h36m_ckpt.pt
 
-python main.py --cfg humaneva --mode pred --vis_row 3 --vis_col 10 --ckpt ./checkpoints/humaneva_ckpt.pt
 
-python main.py --cfg amass --mode pred --vis_row 3 --vis_col 10 --ckpt ./checkpoints/amass_ckpt.pt
 
 
 
