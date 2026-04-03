@@ -38,8 +38,8 @@ data
 
 
 ### 🔎 Evaluation
-```
-Evaluate on Human3.6M:
+
+Evaluate on HARPER:
 
 
 python main.py --cfg harper3d_30hz --mode eval --ckpt ./results/harper3d_30hz/models/best_ema.pt
