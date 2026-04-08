@@ -67,7 +67,7 @@ python main.py --cfg h36m --mode pred --vis_row 3 --vis_col 10 --ckpt ./checkpoi
 
 
 
-```
+
 ## 🌹 Acknowledgment
 Project structure is borrowed from [TransFusion](https://github.com/sibotian96/TransFusion). We would like to thank the authors for making their code publicly available.
 
