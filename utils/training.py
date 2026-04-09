@@ -176,33 +176,50 @@ class Trainer:
         self.t_s = time.time()
         self.val_losses = AverageMeter()
         self.generator_val = self.dataset['test'].sampling_generator(num_samples=self.cfg.num_val_data_sample,
-                                                                     batch_size=self.cfg.batch_size)
+                                                                     batch_size=self.cfg.batch_size,
+                                                                     aug=False)
         self.logger.info(f"Starting val epoch {self.iter}:")
 
     def run_val_step(self):
-        for traj_np in self.generator_val:
-            with torch.no_grad():
-                traj_np, traj_cond_np = split_motion_inputs(traj_np, self.cfg)
-                traj = tensor(traj_np, device=self.cfg.device, dtype=self.cfg.dtype)
-                traj_cond = tensor(traj_cond_np, device=self.cfg.device, dtype=self.cfg.dtype)
-                traj_cond_pad = padding_traj(traj_cond, self.cfg.padding, self.cfg.idx_pad,
-                                             self.cfg.zero_index)
-                traj_dct = torch.matmul(self.cfg.dct_m_all[:self.cfg.n_pre], traj)
-                traj_dct_mod = torch.matmul(self.cfg.dct_m_all[:self.cfg.n_pre], traj_cond_pad)
+        np_state = np.random.get_state()
+        torch_state = torch.random.get_rng_state()
+        cuda_states = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
 
-                if np.random.random() > self.cfg.mod_train:
-                    traj_dct_mod = None
+        val_seed = self.cfg.seed + 12345
+        np.random.seed(val_seed)
+        torch.manual_seed(val_seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(val_seed)
 
-                t = self.diffusion.sample_timesteps(traj.shape[0]).to(self.cfg.device)
-                x_t, noise = self.diffusion.noise_motion(traj_dct, t)
-                predicted_noise = self.model(x_t, t, mod=traj_dct_mod)
-                loss = self.criterion(predicted_noise, noise)
+        try:
+            for traj_np in self.generator_val:
+                with torch.no_grad():
+                    traj_np, traj_cond_np = split_motion_inputs(traj_np, self.cfg)
+                    traj = tensor(traj_np, device=self.cfg.device, dtype=self.cfg.dtype)
+                    traj_cond = tensor(traj_cond_np, device=self.cfg.device, dtype=self.cfg.dtype)
+                    traj_cond_pad = padding_traj(traj_cond, self.cfg.padding, self.cfg.idx_pad,
+                                                 self.cfg.zero_index)
+                    traj_dct = torch.matmul(self.cfg.dct_m_all[:self.cfg.n_pre], traj)
+                    traj_dct_mod = torch.matmul(self.cfg.dct_m_all[:self.cfg.n_pre], traj_cond_pad)
 
-                self.val_losses.update(loss.item())
-                if self.tb_logger is not None:
-                    self.tb_logger.add_scalar('Loss/val', loss.item(), self.iter)
+                    if np.random.random() > self.cfg.mod_test:
+                        traj_dct_mod = None
 
-            del loss, traj, traj_cond, traj_dct, traj_dct_mod, traj_cond_pad, traj_np, traj_cond_np
+                    t = self.diffusion.sample_timesteps(traj.shape[0]).to(self.cfg.device)
+                    x_t, noise = self.diffusion.noise_motion(traj_dct, t)
+                    predicted_noise = self.model(x_t, t, mod=traj_dct_mod)
+                    loss = self.criterion(predicted_noise, noise)
+
+                    self.val_losses.update(loss.item())
+                    if self.tb_logger is not None:
+                        self.tb_logger.add_scalar('Loss/val', loss.item(), self.iter)
+
+                del loss, traj, traj_cond, traj_dct, traj_dct_mod, traj_cond_pad, traj_np, traj_cond_np
+        finally:
+            np.random.set_state(np_state)
+            torch.random.set_rng_state(torch_state)
+            if cuda_states is not None:
+                torch.cuda.set_rng_state_all(cuda_states)
 
     def after_val_step(self):
         self.logger.info('====> Epoch: {} Time: {:.2f} Val Loss: {}'.format(self.iter,
