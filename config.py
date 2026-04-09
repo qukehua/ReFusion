@@ -81,6 +81,7 @@ class Config:
         self.milestone = cfg.get('milestone', [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400])
         self.gamma = cfg.get('gamma', 0.8)
         self.save_model_interval = cfg.get('save_model_interval', 100)
+        self.disable_tensorboard = cfg.get('disable_tensorboard', False)
 
         self.n_pre = cfg['n_pre']
         self.multimodal_path = cfg.get('multimodal_path', None)

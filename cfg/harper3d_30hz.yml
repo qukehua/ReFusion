@@ -25,6 +25,7 @@ dropout: 0.2
 mod_train: 0.8
 mod_test: 1.0
 dct_norm_enable: False
+disable_tensorboard: True
 # Harper3D specific settings
 include_spot: True
 use_spot_condition: True

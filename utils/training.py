@@ -146,7 +146,8 @@ class Trainer:
                 ema.step_ema(ema_model, self.model)
 
             self.train_losses.update(loss.item())
-            self.tb_logger.add_scalar('Loss/train', loss.item(), self.iter)
+            if self.tb_logger is not None:
+                self.tb_logger.add_scalar('Loss/train', loss.item(), self.iter)
             
             # Update progress bar with current loss
             pbar.set_postfix({'loss': f'{self.train_losses.avg:.4f}'})
@@ -198,7 +199,8 @@ class Trainer:
                 loss = self.criterion(predicted_noise, noise)
 
                 self.val_losses.update(loss.item())
-                self.tb_logger.add_scalar('Loss/val', loss.item(), self.iter)
+                if self.tb_logger is not None:
+                    self.tb_logger.add_scalar('Loss/val', loss.item(), self.iter)
 
             del loss, traj, traj_cond, traj_dct, traj_dct_mod, traj_cond_pad, traj_np, traj_cond_np
 

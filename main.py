@@ -61,7 +61,7 @@ if __name__ == '__main__':
 
 
     """logger"""
-    tb_logger = SummaryWriter(cfg.tb_dir)
+    tb_logger = None if cfg.disable_tensorboard else SummaryWriter(cfg.tb_dir)
     logger = create_logger(os.path.join(cfg.log_dir, 'log.txt'))
     display_exp_setting(logger, cfg)
     

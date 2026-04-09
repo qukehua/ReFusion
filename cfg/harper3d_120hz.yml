@@ -25,6 +25,7 @@ dropout: 0.2
 mod_train: 0.8
 mod_test: 1.0
 dct_norm_enable: False
+disable_tensorboard: True
 # Harper3D specific settings
 data_path: '/data3/user/qkh/HARPER/HARPER _3D panoptic'
 include_spot: True
