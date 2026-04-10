@@ -23,6 +23,7 @@ def create_model_and_diffusion(cfg):
     model = MotionTransformer(
         input_feats=3 * cfg.joint_num,  # 3 means x, y, z
         cond_feats=3 * cfg.cond_joint_num,
+        human_cond_joint_num=cfg.joint_num,
         num_frames=cfg.n_pre,
         num_layers=cfg.num_layers,
         num_heads=cfg.num_heads,

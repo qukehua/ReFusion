@@ -34,6 +34,8 @@ def get_1d_sincos_pos_embed(length, dim):
 class Attention(nn.Module):
     def __init__(self, dim, num_heads=8, dropout=0.0):
         super().__init__()
+        if dim % num_heads != 0:
+            raise ValueError(f"Attention dim ({dim}) must be divisible by num_heads ({num_heads}).")
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
         self.scale = self.head_dim ** -0.5
@@ -58,6 +60,38 @@ class Attention(nn.Module):
         return x
 
 
+class CrossAttention(nn.Module):
+    def __init__(self, dim, num_heads=8, dropout=0.0):
+        super().__init__()
+        if dim % num_heads != 0:
+            raise ValueError(f"CrossAttention dim ({dim}) must be divisible by num_heads ({num_heads}).")
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.scale = self.head_dim ** -0.5
+        self.q_proj = nn.Linear(dim, dim, bias=True)
+        self.k_proj = nn.Linear(dim, dim, bias=True)
+        self.v_proj = nn.Linear(dim, dim, bias=True)
+        self.attn_drop = nn.Dropout(dropout)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(dropout)
+
+    def forward(self, query, context):
+        bsz, q_len, dim = query.shape
+        c_len = context.shape[1]
+        q = self.q_proj(query).reshape(bsz, q_len, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
+        k = self.k_proj(context).reshape(bsz, c_len, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
+        v = self.v_proj(context).reshape(bsz, c_len, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
+
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+
+        x = (attn @ v).transpose(1, 2).reshape(bsz, q_len, dim)
+        x = self.proj(x)
+        x = self.proj_drop(x)
+        return x
+
+
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features, dropout=0.0):
         super().__init__()
@@ -72,6 +106,28 @@ class Mlp(nn.Module):
         x = self.drop(x)
         x = self.fc2(x)
         x = self.drop(x)
+        return x
+
+
+class GraphConvBlock(nn.Module):
+    def __init__(self, num_nodes, hidden_size, dropout=0.0):
+        super().__init__()
+        self.adj = nn.Parameter(torch.eye(num_nodes))
+        self.norm1 = nn.LayerNorm(hidden_size)
+        self.fc1 = nn.Linear(hidden_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.norm2 = nn.LayerNorm(hidden_size)
+        self.mlp = Mlp(hidden_size, hidden_size * 4, dropout=dropout)
+
+    def forward(self, x):
+        adj = torch.softmax(self.adj, dim=-1)
+        y = self.norm1(x)
+        y = self.fc1(y)
+        y = torch.einsum('ij,bjd->bid', adj, y)
+        y = torch.nn.functional.gelu(y)
+        y = self.fc2(y)
+        x = x + y
+        x = x + self.mlp(self.norm2(x))
         return x
 
 
@@ -114,6 +170,7 @@ class MotionTransformer(nn.Module):
     def __init__(self,
                  input_feats,
                  cond_feats=None,
+                 human_cond_joint_num=None,
                  num_frames=240,
                  latent_dim=512,
                  ff_size=1024,
@@ -132,6 +189,20 @@ class MotionTransformer(nn.Module):
         self.dropout = dropout
         self.input_feats = input_feats
         self.cond_feats = input_feats if cond_feats is None else cond_feats
+        if self.input_feats % 3 != 0:
+            raise ValueError(f"input_feats must be divisible by 3, got {self.input_feats}.")
+        if self.cond_feats % 3 != 0:
+            raise ValueError(f"cond_feats must be divisible by 3, got {self.cond_feats}.")
+        self.input_joint_num = self.input_feats // 3
+        self.cond_joint_num = self.cond_feats // 3
+        self.human_cond_joint_num = self.input_joint_num if human_cond_joint_num is None else human_cond_joint_num
+        self.robot_cond_joint_num = max(0, self.cond_joint_num - self.human_cond_joint_num)
+        if self.human_cond_joint_num <= 0:
+            raise ValueError(f"human_cond_joint_num must be > 0, got {self.human_cond_joint_num}.")
+        if self.human_cond_joint_num > self.cond_joint_num:
+            raise ValueError(
+                f"human_cond_joint_num ({self.human_cond_joint_num}) exceeds cond joints ({self.cond_joint_num})."
+            )
 
         self.x_embedder = nn.Linear(self.input_feats, latent_dim)
         self.t_embedder = nn.Sequential(
@@ -139,12 +210,29 @@ class MotionTransformer(nn.Module):
             nn.SiLU(),
             nn.Linear(latent_dim, latent_dim),
         )
-        self.c_embedder = nn.Sequential(
-            nn.Linear(self.cond_feats * self.num_frames, latent_dim),
+        self.human_joint_embed = nn.Linear(3, latent_dim)
+        self.robot_joint_embed = nn.Linear(3, latent_dim) if self.robot_cond_joint_num > 0 else None
+        self.human_gcn = nn.ModuleList([
+            GraphConvBlock(self.human_cond_joint_num, latent_dim, dropout=dropout)
+            for _ in range(2)
+        ])
+        self.human_cond_proj = nn.Sequential(
+            nn.LayerNorm(latent_dim),
+            nn.Linear(latent_dim, latent_dim),
+            nn.SiLU(),
+            nn.Linear(latent_dim, latent_dim),
+        )
+        self.cross_attn = CrossAttention(latent_dim, num_heads=num_heads, dropout=dropout) if self.robot_cond_joint_num > 0 else None
+        self.cross_norm_q = nn.LayerNorm(latent_dim) if self.robot_cond_joint_num > 0 else None
+        self.cross_norm_kv = nn.LayerNorm(latent_dim) if self.robot_cond_joint_num > 0 else None
+        self.cross_cond_proj = nn.Sequential(
+            nn.LayerNorm(latent_dim),
+            nn.Linear(latent_dim, latent_dim),
             nn.SiLU(),
             nn.Linear(latent_dim, latent_dim),
         )
         self.pos_embed = nn.Parameter(torch.zeros(1, num_frames, latent_dim), requires_grad=False)
+        self.cond_time_pos_embed = nn.Parameter(torch.zeros(1, num_frames, latent_dim), requires_grad=False)
         self.blocks = nn.ModuleList([
             DiTBlock(latent_dim, num_heads, mlp_ratio=ff_size / latent_dim, dropout=dropout)
             for _ in range(num_layers)
@@ -159,12 +247,24 @@ class MotionTransformer(nn.Module):
 
         pos_embed = get_1d_sincos_pos_embed(self.num_frames, self.latent_dim)
         self.pos_embed.data.copy_(pos_embed)
+        self.cond_time_pos_embed.data.copy_(pos_embed)
 
-        for embedder in (self.t_embedder, self.c_embedder):
-            nn.init.normal_(embedder[0].weight, std=0.02)
-            nn.init.zeros_(embedder[0].bias)
-            nn.init.normal_(embedder[2].weight, std=0.02)
-            nn.init.zeros_(embedder[2].bias)
+        nn.init.normal_(self.t_embedder[0].weight, std=0.02)
+        nn.init.zeros_(self.t_embedder[0].bias)
+        nn.init.normal_(self.t_embedder[2].weight, std=0.02)
+        nn.init.zeros_(self.t_embedder[2].bias)
+
+        for proj in (self.human_cond_proj, self.cross_cond_proj):
+            nn.init.normal_(proj[1].weight, std=0.02)
+            nn.init.zeros_(proj[1].bias)
+            nn.init.normal_(proj[3].weight, std=0.02)
+            nn.init.zeros_(proj[3].bias)
+
+        nn.init.xavier_uniform_(self.human_joint_embed.weight)
+        nn.init.zeros_(self.human_joint_embed.bias)
+        if self.robot_joint_embed is not None:
+            nn.init.xavier_uniform_(self.robot_joint_embed.weight)
+            nn.init.zeros_(self.robot_joint_embed.bias)
 
         for block in self.blocks:
             nn.init.zeros_(block.adaLN_modulation[1].weight)
@@ -174,6 +274,33 @@ class MotionTransformer(nn.Module):
         nn.init.zeros_(self.final_layer.adaLN_modulation[1].bias)
         nn.init.zeros_(self.final_layer.out_proj.weight)
         nn.init.zeros_(self.final_layer.out_proj.bias)
+
+    def encode_conditions(self, mod):
+        bsz, seq_len, _ = mod.shape
+        human_dim = self.human_cond_joint_num * 3
+        human_motion = mod[:, :, :human_dim].reshape(bsz, seq_len, self.human_cond_joint_num, 3)
+        human_tokens = self.human_joint_embed(human_motion).reshape(bsz * seq_len, self.human_cond_joint_num, self.latent_dim)
+        for gcn in self.human_gcn:
+            human_tokens = gcn(human_tokens)
+        human_tokens = human_tokens.reshape(bsz, seq_len, self.human_cond_joint_num, self.latent_dim)
+        # Inject explicit temporal order before flattening joints into token sequence.
+        time_pe = self.cond_time_pos_embed[:, :seq_len].unsqueeze(2)
+        human_tokens = human_tokens + time_pe
+        human_time_tokens = human_tokens.mean(dim=2)
+        human_global = self.human_cond_proj(human_time_tokens.mean(dim=1))
+
+        if self.robot_cond_joint_num == 0:
+            return human_time_tokens, human_global
+
+        robot_motion = mod[:, :, human_dim:].reshape(bsz, seq_len, self.robot_cond_joint_num, 3)
+        robot_tokens = self.robot_joint_embed(robot_motion) + time_pe
+        robot_tokens = robot_tokens.reshape(bsz, seq_len * self.robot_cond_joint_num, self.latent_dim)
+        human_query = human_tokens.reshape(bsz, seq_len * self.human_cond_joint_num, self.latent_dim)
+        human_query = human_query + self.cross_attn(self.cross_norm_q(human_query), self.cross_norm_kv(robot_tokens))
+        human_query = human_query.reshape(bsz, seq_len, self.human_cond_joint_num, self.latent_dim)
+        fused_time_tokens = human_query.mean(dim=2)
+        fused_global = self.cross_cond_proj(fused_time_tokens.mean(dim=1))
+        return fused_time_tokens, human_global + fused_global
 
     def forward(self, x, timesteps, mod=None):
         """
@@ -188,7 +315,19 @@ class MotionTransformer(nn.Module):
         c = self.t_embedder(timestep_embedding(timesteps, self.latent_dim))
 
         if mod is not None:
-            c = c + self.c_embedder(mod.reshape(bsz, -1))
+            if mod.ndim != 3:
+                raise ValueError(f"Condition mod must be 3D [B, T, D_cond], got shape {tuple(mod.shape)}.")
+            if mod.shape[0] != bsz:
+                raise ValueError(f"Condition batch mismatch: mod B={mod.shape[0]} vs x B={bsz}.")
+            if mod.shape[1] != seq_len:
+                raise ValueError(f"Condition time mismatch: mod T={mod.shape[1]} vs x T={seq_len}.")
+            if mod.shape[2] != self.cond_feats:
+                raise ValueError(
+                    f"Condition feature mismatch: mod D={mod.shape[2]} vs expected cond_feats={self.cond_feats}."
+                )
+            cond_time_tokens, cond_global = self.encode_conditions(mod)
+            x = x + cond_time_tokens[:, :seq_len]
+            c = c + cond_global
 
         for block in self.blocks:
             x = block(x, c)
