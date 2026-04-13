@@ -54,7 +54,9 @@ python main.py --cfg harper3d_120hz --mode eval --ckpt ./results/harper3d_120hz/
 ## 🎥 Visualization
 Run the following scripts for visualization purpose:
 
-python main.py --cfg h36m --mode pred --vis_row 3 --vis_col 10 --ckpt ./checkpoints/h36m_ckpt.pt
+python main.py --cfg harper3d_30hz --mode pred --vis_row 3 --vis_col 10 --ckpt ./results/harper3d_30hz/models/best_ema.pt
+
+python main.py --cfg harper3d_120hz --mode pred --vis_row 3 --vis_col 10 --ckpt ./results/harper3d_120hz/models/best_ema.pt
 
 
 
