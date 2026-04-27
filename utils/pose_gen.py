@@ -3,6 +3,27 @@ from utils import *
 from utils.script import sample_preprocessing
 
 
+def _attach_robot_joints_for_vis(pred_human, gt_full, cfg):
+    """
+    For HARPER human-only prediction, append GT robot joints so rendered poses
+    share the same full skeleton (human + robot) as context/gt panels.
+    """
+    if getattr(cfg, 'dataset', None) != 'harper3d':
+        return pred_human
+    if not getattr(cfg, 'include_spot', False):
+        return pred_human
+    if not getattr(cfg, 'predict_human_only', False):
+        return pred_human
+    if gt_full.shape[1] <= cfg.output_total_joints:
+        return pred_human
+
+    # gt_full: [T, J_full, 3], pred_human: [N, T, J_human, 3]
+    robot_gt = gt_full[:, cfg.output_total_joints:, :]
+    robot_gt = np.expand_dims(robot_gt, axis=0)
+    robot_gt = np.repeat(robot_gt, pred_human.shape[0], axis=0)
+    return np.concatenate([pred_human, robot_gt], axis=2)
+
+
 def pose_generator(data_set, model_select, diffusion, cfg, mode=None,
                    action=None, nrow=1):
     """
@@ -50,6 +71,7 @@ def pose_generator(data_set, model_select, diffusion, cfg, mode=None,
             traj_est = reconstruct_from_velocity(traj_est, gt, cfg)
             traj_est = traj_est.cpu().numpy()
             traj_est = post_process(traj_est, cfg)
+            traj_est = _attach_robot_joints_for_vis(traj_est, gt[0], cfg)
 
             if k == 0:
                 for j in range(traj_est.shape[0]):

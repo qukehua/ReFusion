@@ -10,7 +10,9 @@ import time
 from datetime import datetime
 
 
-def render_animation(skeleton, poses_generator, algos, t_hist, fix_0=True, azim=0.0, output=None, mode='pred', size=2, ncol=5, bitrate=3000):
+def render_animation(skeleton, poses_generator, algos, t_hist, fix_0=True, azim=0.0,
+                     output=None, mode='pred', size=2, ncol=5, bitrate=3000,
+                     coord_order=(0, 1, 2)):
     """
     TODO
     Render an animation. The supported output modes are:
@@ -32,6 +34,11 @@ def render_animation(skeleton, poses_generator, algos, t_hist, fix_0=True, azim=
     lines_3d = []
     trajectories = []
     radius = 1.7
+    coord_order = tuple(coord_order)
+
+    def project_pose(pos):
+        return pos[..., coord_order]
+
     for index, (title, data) in enumerate(poses.items()):
         ax = fig.add_subplot(nrow, ncol, index+1, projection='3d')
         ax.view_init(elev=15., azim=azim)
@@ -50,7 +57,7 @@ def render_animation(skeleton, poses_generator, algos, t_hist, fix_0=True, azim=
         ax.patch.set_alpha(0.0)
         ax_3d.append(ax)
         lines_3d.append([])
-        trajectories.append(data[:, 0, [0, 1]])
+        trajectories.append(project_pose(data[:, 0]))
     fig.tight_layout(h_pad=15,w_pad=15)
     fig.subplots_adjust(wspace=-0.4, hspace=0.4)
     poses = list(poses.values())
@@ -62,7 +69,15 @@ def render_animation(skeleton, poses_generator, algos, t_hist, fix_0=True, azim=
     hist_lcol, hist_mcol, hist_rcol = 'gray', 'black', 'red'
     pred_lcol, pred_mcol, pred_rcol = 'purple', 'black', 'green'
 
-    parents = skeleton.parents()
+    base_bone_pairs = skeleton.links() if hasattr(skeleton, 'links') else [
+        (j, j_parent) for j, j_parent in enumerate(skeleton.parents()) if j_parent != -1
+    ]
+    bone_pairs_per_pose = []
+    for pose in poses:
+        joint_num = pose.shape[1]
+        bone_pairs_per_pose.append(
+            [(j, j_parent) for j, j_parent in base_bone_pairs if j < joint_num and j_parent < joint_num]
+        )
 
     def update_video(i):
         nonlocal initialized
@@ -76,26 +91,22 @@ def render_animation(skeleton, poses_generator, algos, t_hist, fix_0=True, azim=
                 continue
             if fix_0 and n % ncol == 0 and i >= t_hist:
                 continue
-            trajectories[n] = poses[n][:, 0, [0, 1, 2]]
+            trajectories[n] = project_pose(poses[n][:, 0])
             ax.set_xlim3d([-radius / 2 + trajectories[n][i, 0], radius / 2 + trajectories[n][i, 0]])
             ax.set_ylim3d([-radius / 2 + trajectories[n][i, 1], radius / 2 + trajectories[n][i, 1]])
             ax.set_zlim3d([-radius / 2 + trajectories[n][i, 2], radius / 2 + trajectories[n][i, 2]])
 
         if not initialized:
 
-            for j, j_parent in enumerate(parents):
-                if j_parent == -1:
-                    continue
-
-                if j in skeleton.joints_right():
-                    col = rcol
-                elif j in skeleton.joints_left():
-                    col = lcol
-                else:
-                    col = mcol
-
-                for n, ax in enumerate(ax_3d):
-                    pos = poses[n][i]
+            for n, ax in enumerate(ax_3d):
+                pos = project_pose(poses[n][i])
+                for j, j_parent in bone_pairs_per_pose[n]:
+                    if j in skeleton.joints_right():
+                        col = rcol
+                    elif j in skeleton.joints_left():
+                        col = lcol
+                    else:
+                        col = mcol
 
                     lines_3d[n].append(ax.plot([pos[j, 0], pos[j_parent, 0]],
                                                [pos[j, 1], pos[j_parent, 1]],
@@ -103,30 +114,25 @@ def render_animation(skeleton, poses_generator, algos, t_hist, fix_0=True, azim=
             initialized = True
         else:
 
-            for j, j_parent in enumerate(parents):
-                if j_parent == -1:
+            for n, ax in enumerate(ax_3d):
+                if fix_0 and n == 0 and i >= t_hist:
+                    continue
+                if fix_0 and n % ncol == 0 and i >= t_hist:
                     continue
 
-                if j in skeleton.joints_right():
-                    col = rcol
-                elif j in skeleton.joints_left():
-                    col = lcol
-                else:
-                    col = mcol
-
-                for n, ax in enumerate(ax_3d):
-                    if fix_0 and n == 0 and i >= t_hist:
-                        continue
-                    if fix_0 and n % ncol == 0 and i >= t_hist:
-                        continue
-
-
-                    pos = poses[n][i]
+                pos = project_pose(poses[n][i])
+                for bone_idx, (j, j_parent) in enumerate(bone_pairs_per_pose[n]):
+                    if j in skeleton.joints_right():
+                        col = rcol
+                    elif j in skeleton.joints_left():
+                        col = lcol
+                    else:
+                        col = mcol
                     x_array = np.array([pos[j, 0], pos[j_parent, 0]])
                     y_array = np.array([pos[j, 1], pos[j_parent, 1]])
                     z_array = np.array([pos[j, 2], pos[j_parent, 2]])
-                    lines_3d[n][j - 1][0].set_data_3d(x_array, y_array, z_array)
-                    lines_3d[n][j - 1][0].set_color(col)
+                    lines_3d[n][bone_idx][0].set_data_3d(x_array, y_array, z_array)
+                    lines_3d[n][bone_idx][0].set_color(col)
 
 
     def show_animation():
@@ -137,7 +143,7 @@ def render_animation(skeleton, poses_generator, algos, t_hist, fix_0=True, azim=
         plt.draw()
 
     def reload_poses():
-        nonlocal poses
+        nonlocal poses, bone_pairs_per_pose
         poses = dict(filter(lambda x: x[0] in {'gt', 'context'} or algo == x[0].split('_')[0] or x[0].startswith('gt'),
                             all_poses.items()))
         if x[0] in {'gt', 'context'}:
@@ -149,6 +155,12 @@ def render_animation(skeleton, poses_generator, algos, t_hist, fix_0=True, azim=
                     ax.set_title('target', y=1.0, fontsize=12)
         
         poses = list(poses.values())
+        bone_pairs_per_pose = []
+        for pose in poses:
+            joint_num = pose.shape[1]
+            bone_pairs_per_pose.append(
+                [(j, j_parent) for j, j_parent in base_bone_pairs if j < joint_num and j_parent < joint_num]
+            )
 
     def save_figs():
         nonlocal algo, find

@@ -78,6 +78,7 @@ class Config:
         self.use_data_aug = cfg.get('use_data_aug', False)
         self.aug_rotate_prob = cfg.get('aug_rotate_prob', 0.5)
         self.aug_reverse_prob = cfg.get('aug_reverse_prob', 0.3)
+        self.vis_azim = cfg.get('vis_azim', 0.0)
         self.use_velocity_input = cfg.get('use_velocity_input', False)
         self.velocity_loss_weight = cfg.get('velocity_loss_weight', 0.0)
 

@@ -95,8 +95,26 @@ class Dataset:
             dict_s = self.data['S9']
         elif dataset_type == 'humaneva':
             dict_s = self.data['Validate/S2']
+        elif dataset_type == 'harper3d':
+            # HARPER stores data as self.data[subject][action_key], where action_key
+            # may include suffixes like "act1_0_1" for uniqueness.
+            candidate = []
+            for subject, dict_s_sub in self.data.items():
+                for action_key, seq in dict_s_sub.items():
+                    if action_key == action_category or action_key.startswith(action_category):
+                        if seq.shape[0] > self.t_total:
+                            candidate.append(seq)
+            if len(candidate) == 0:
+                raise ValueError(
+                    f"No HARPER sequence found for action '{action_category}' with length > t_total ({self.t_total})."
+                )
+            seq = candidate[np.random.randint(len(candidate))]
+            fr_start = np.random.randint(seq.shape[0] - self.t_total)
+            fr_end = fr_start + self.t_total
+            traj = seq[fr_start: fr_end]
+            return traj[None, ...]
         else:
-            raise
+            raise ValueError(f"Unsupported dataset_type '{dataset_type}' in sample_iter_action.")
         sample = []
         
         action = action_category
@@ -114,8 +132,16 @@ class Dataset:
             dict_s = self.data['S9']
         elif dataset_type == 'humaneva':
             dict_s = self.data['Validate/S2']
+        elif dataset_type == 'harper3d':
+            # Collect action names across all subjects; strip duplicate suffixes.
+            action_list = []
+            for _, dict_s_sub in self.data.items():
+                for action_key in dict_s_sub.keys():
+                    base_action = action_key.rsplit('_', 1)[0]
+                    action_list.append(base_action)
+            return sorted(list(set(action_list)))
         else:
-            raise
+            raise ValueError(f"Unsupported dataset_type '{dataset_type}' in prepare_iter_action.")
 
         action_list = []
         sample = []

@@ -51,34 +51,60 @@ class DatasetHarper3D(Dataset):
         Prepare Harper3D data in TransFusion format.
         Data structure: self.data[subject][action] = sequence (frames, joints, 3)
         """
-        # Harper3D skeleton definition for human (21 joints)
-        # Parent indices for 21 human joints (simplified kinematic chain)
-        human_parents = [-1, 0, 1, 2, 3, 1, 5, 6, 1, 8, 9, 10, 8, 12, 13, 8, 15, 16, 0, 18, 19]
+        # HARPER official human links:
+        # https://github.com/intelligolabs/HARPER/blob/main/tools/links.py
+        human_links = [
+            (0, 1), (1, 2), (2, 3), (3, 4),
+            (3, 5), (5, 6), (6, 7), (7, 8),
+            (3, 9), (9, 10), (10, 11), (11, 12),
+            (0, 13), (13, 14), (14, 15), (15, 16),
+            (0, 17), (17, 18), (18, 19), (19, 20),
+            (6, 13), (10, 17),
+        ]
+        # Tree parents are still kept for compatibility; visualization uses
+        # official links above when available.
+        human_parents = [-1, 0, 1, 2, 3, 3, 5, 6, 7, 3, 9, 10, 11, 0, 13, 14, 15, 0, 17, 18, 19]
         
         if self.include_spot:
-            # Spot robot has 23 joints, add them after human joints
-            # Define the Spot chain in local indices first, then shift by 21 so
-            # the robot subtree starts after the 21 human joints.
-            spot_parents = [-1] + list(range(22))
+            # HARPER official Spot links. Spot joints are shifted by 21 because
+            # they are stored after the human joints.
+            spot_links = [
+                (4, 10), (7, 1),
+                (1, 2), (2, 3),
+                (4, 5), (5, 6),
+                (7, 8), (8, 9),
+                (10, 11), (11, 12),
+                (13, 14), (14, 16), (16, 15), (15, 13),
+                (17, 18), (18, 20), (20, 19), (19, 17),
+                (13, 17), (14, 18), (15, 19), (16, 20),
+                (0, 21), (21, 22),
+            ]
+            spot_parents = [-1] * 23
+            for parent, child in spot_links:
+                if spot_parents[child] == -1:
+                    spot_parents[child] = parent
             all_parents = human_parents + [p + 21 if p >= 0 else -1 for p in spot_parents]
+            all_links = human_links + [(a + 21, b + 21) for a, b in spot_links]
             self.num_human_joints = 21
             self.num_spot_joints = 23
             self.total_joints = 44
-            # For skeleton, we use simplified left/right
-            joints_left = list(range(5, 8)) + list(range(12, 15))  # human left side
-            joints_right = list(range(2, 5)) + list(range(15, 18))  # human right side
+            # Left/right groups for coloring in visualization.
+            joints_left = [1, 2, 3, 4, 13, 14, 15, 16]
+            joints_right = [5, 6, 7, 8, 17, 18, 19, 20]
         else:
             all_parents = human_parents
+            all_links = human_links
             self.num_human_joints = 21
             self.num_spot_joints = 0
             self.total_joints = 21
-            joints_left = [5, 6, 7, 12, 13, 14]
-            joints_right = [2, 3, 4, 15, 16, 17]
+            joints_left = [1, 2, 3, 4, 13, 14, 15, 16]
+            joints_right = [5, 6, 7, 8, 17, 18, 19, 20]
         
         self.skeleton = Skeleton(
             parents=all_parents,
             joints_left=joints_left,
-            joints_right=joints_right
+            joints_right=joints_right,
+            links=all_links
         )
         
         # All joints are kept (no removal)

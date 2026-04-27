@@ -2,12 +2,13 @@ import numpy as np
 
 
 class Skeleton:
-    def __init__(self, parents, joints_left, joints_right):
+    def __init__(self, parents, joints_left, joints_right, links=None):
         assert len(joints_left) == len(joints_right)
         
         self._parents = np.array(parents)
         self._joints_left = joints_left
         self._joints_right = joints_right
+        self._links = links
         self._compute_metadata()
     
     def num_joints(self):
@@ -15,6 +16,11 @@ class Skeleton:
     
     def parents(self):
         return self._parents
+
+    def links(self):
+        if self._links is not None:
+            return self._links
+        return [(j, parent) for j, parent in enumerate(self._parents) if parent != -1]
     
     def has_children(self):
         return self._has_children

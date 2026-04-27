@@ -17,8 +17,11 @@ def demo_visualize(mode, cfg, model, diffusion, dataset):
             pose_gen = pose_generator(dataset['test'], model, diffusion, cfg,
                                       mode='pred', action=action_list[i], nrow=cfg.vis_row)
             suffix = action_list[i]
+            vis_azim = getattr(cfg, 'vis_azim', 0.0)
+            coord_order = (0, 2, 1) if cfg.dataset == 'harper3d' else (0, 1, 2)
             render_animation(dataset['test'].skeleton, pose_gen, ['TransFusion'], cfg.t_his, ncol=cfg.vis_col + 2,
-                             output=os.path.join(cfg.gif_dir, f'pred_{suffix}.gif'), mode=mode)
+                             output=os.path.join(cfg.gif_dir, f'pred_{suffix}.gif'), mode=mode,
+                             azim=vis_azim, coord_order=coord_order)
 
     else:
         raise NotImplementedError(f"sorry, {mode} is not only available.")  
