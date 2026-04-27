@@ -41,8 +41,8 @@ aug_reverse_prob: 0.2
 use_velocity_input: False
 velocity_loss_weight: 0.0 #1.e-5
 # Harper3D specific settings
-include_spot: False    #human joints omly: False
-use_spot_condition: False    #human joints omly: False
+include_spot: True    #human joints omly: False
+use_spot_condition: True    #human joints omly: False
 predict_human_only: True
 data_path: '/data3/user/qkh/HARPER/HARPER _3D panoptic'
 fps: '30hz'
