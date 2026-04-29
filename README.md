@@ -1,4 +1,4 @@
-
+## Visualization Results 
 ## 🛠 Setup
 
 ### 1. Python/Conda Environment
@@ -31,7 +31,7 @@ data
 ```
 
 
-## ⏳ Training
+## ⏳ To Training
 
 Training on HARPER:
 
@@ -40,7 +40,7 @@ CUDA_VISIBLE_DEVICES=0 python main.py --cfg harper3d_30hz --mode train --exp_nam
 CUDA_VISIBLE_DEVICES=0 python main.py --cfg harper3d_120hz --mode train --exp_name harper3d_120hz
 
 
-### 🔎 Evaluation
+### 🔎 To Evaluation
 
 Evaluate on HARPER:
 
@@ -51,7 +51,7 @@ python main.py --cfg harper3d_120hz --mode eval --ckpt ./results/harper3d_120hz/
 
 
 
-## 🎥 Visualization
+## 🎥 To Visualization
 Run the following scripts for visualization purpose:
 
 python main.py --cfg harper3d_30hz --mode pred --vis_row 3 --vis_col 10 --ckpt ./results/harper3d_30hz/models/best_ema.pt
