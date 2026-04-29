@@ -1,7 +1,7 @@
 ## Visualization Results 
 ![Visualization Results](images/pred_act1.gif)
 ![Visualization Results](images/pred_act2.gif)
-![Visualization Results](images/pred_act3.gif)
+![Visualization Results](images/pred_act5.gif)
 ## 🛠 Setup
 
 ### 1. Python/Conda Environment
