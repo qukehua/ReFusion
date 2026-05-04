@@ -122,6 +122,7 @@ def dataset_split(cfg):
             exclude_crash=cfg.chico_exclude_crash,
         )
     elif cfg.dataset == 'comad':
+        comad_test_if = getattr(cfg, 'comad_test_interactions', None)
         dataset = dataset_cls('train', cfg.t_his, cfg.t_pred, actions='all',
                               data_path=cfg.data_path,
                               include_person2=cfg.include_person2,
@@ -133,13 +134,15 @@ def dataset_split(cfg):
                                    data_path=cfg.data_path,
                                    include_person2=cfg.include_person2,
                                    include_robot=cfg.include_robot,
-                                   use_data_aug=False)
+                                   use_data_aug=False,
+                                   eval_interaction_filter=comad_test_if)
         dataset_multi_test = dataset_cls_multi('test', cfg.t_his, cfg.t_pred,
                                                data_path=cfg.data_path,
                                                include_person2=cfg.include_person2,
                                                include_robot=cfg.include_robot,
                                                multimodal_path=cfg.multimodal_path,
-                                               data_candi_path=cfg.data_candi_path)
+                                               data_candi_path=cfg.data_candi_path,
+                                               eval_interaction_filter=comad_test_if)
     return {'train': dataset, 'test': dataset_test}, dataset_multi_test
 
 

@@ -53,6 +53,35 @@ def update_config(cfg, args_dict):
 
     return cfg
 
+
+def parse_comad_test_interactions(raw):
+    """
+    CoMad path: <split>/<action>/<HH|HR>/<id>/data.json
+    Returns None (load all) or a set of interaction folder names, e.g. {'HR'}.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, str) and raw.strip().lower() == "all":
+        return None
+    if isinstance(raw, (list, tuple)):
+        out = {str(x).strip().upper() for x in raw if str(x).strip()}
+    else:
+        s = str(raw).strip()
+        if not s or s.lower() == "all":
+            return None
+        if " " in s or "," in s:
+            out = {p.upper() for p in s.replace(",", " ").split() if p.strip()}
+        else:
+            out = {s.upper()}
+    allowed = {"HH", "HR"}
+    unknown = out - allowed
+    if unknown:
+        raise ValueError(
+            f"comad_test_interactions must be a subset of {allowed}, got unknown labels {unknown}."
+        )
+    return out or None
+
+
 class Config:
 
     def __init__(self, cfg_id, test=False):
@@ -142,6 +171,9 @@ class Config:
         self.harper3d_multimodal_dir = cfg.get('harper3d_multimodal_dir', '/data3/user/qkh/DATASET/TransFusion/HARPER')
 
         # indirect variable
+        if self.dataset != "comad":
+            self.comad_test_interactions = None
+
         if self.dataset == 'harper3d':
             # Harper3D can use robot joints as conditioning while predicting only
             # human motion. We therefore track output and conditioning sizes separately.
@@ -178,6 +210,8 @@ class Config:
             self.joint_num = self.output_total_joints - 1
             use_scene_condition = self.use_hr_robot_condition or self.use_hh_human_condition
             self.cond_joint_num = self.total_joint_num - 1 if use_scene_condition else self.joint_num
+            # Test / val / pred / multimodal eval: restrict to path segment HH or HR (train always loads all).
+            self.comad_test_interactions = parse_comad_test_interactions(cfg.get("comad_test_interactions", "all"))
         else:
             raise ValueError(
                 f"Unsupported dataset '{self.dataset}'. Supported datasets are 'harper3d', 'chico', and 'comad'."

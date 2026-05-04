@@ -52,6 +52,9 @@ vis_title_fontsize: 16
 include_person2: True
 include_robot: True
 predict_human_only: True
+# Test / val / pred / multimodal eval only (train split unchanged). Paths: test/<action>/<HH|HR>/<id>/...
+# 'all' | 'HR' | 'HH' | 'HR HH' | [HR, HH] — set HR for faster smoke eval on human-robot episodes only.
+comad_test_interactions: HR
 
 # Scene-wise condition control
 # HR scenes -> use robot joints as condition

@@ -66,7 +66,10 @@ class DatasetCoMad(Dataset):
         use_data_aug=False,
         aug_rotate_prob=0.5,
         aug_reverse_prob=0.3,
+        eval_interaction_filter=None,
     ):
+        # Subset of {'HH', 'HR'} from path .../<action>/<HH|HR>/<id>/; train should pass None.
+        self.eval_interaction_filter = eval_interaction_filter
         self.use_vel = use_vel
         self.data_path = data_path
         self.include_person2 = include_person2
@@ -150,6 +153,9 @@ class DatasetCoMad(Dataset):
                 continue
             action, interaction, seq_id = parts[0], parts[1], parts[2]
 
+            if self.eval_interaction_filter is not None and interaction not in self.eval_interaction_filter:
+                continue
+
             if self.actions_filter != "all":
                 if isinstance(self.actions_filter, str):
                     if action != self.actions_filter:
@@ -205,7 +211,8 @@ class DatasetCoMad(Dataset):
         if len(self.subjects) == 0:
             raise RuntimeError(
                 f"No valid CoMad sequences loaded for mode={self.mode}. "
-                f"Check data path ({self.data_path}) and action filter."
+                f"Check data path ({self.data_path}), action filter, and eval_interaction_filter "
+                f"({self.eval_interaction_filter!r})."
             )
 
     def _apply_scene_rotation(self, sample):

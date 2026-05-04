@@ -30,6 +30,7 @@ class DatasetCoMad_multi(DatasetCoMad):
             data_path=data_path,
             include_person2=include_person2,
             include_robot=include_robot,
+            eval_interaction_filter=kwargs.get("eval_interaction_filter", None),
         )
 
     def sample(self, n_modality=5):
