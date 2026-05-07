@@ -45,6 +45,7 @@ def create_model_and_diffusion(cfg):
         latent_dim=cfg.latent_dims,
         dropout=cfg.dropout,
         stage1_num_layers=cfg.stage1_num_layers,
+        dit_attn_mode=cfg.dit_attn_mode,
     ).to(cfg.device)
     diffusion = Diffusion(
         noise_steps=cfg.noise_steps,

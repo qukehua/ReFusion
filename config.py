@@ -146,6 +146,7 @@ class Config:
         self.scheduler = cfg['scheduler']
         self.model_variant = cfg.get('model_variant', 'default')
         self.stage1_num_layers = cfg.get('stage1_num_layers', None)
+        self.dit_attn_mode = cfg.get('dit_attn_mode', 'spatio_temporal')
 
         self.num_layers = cfg['num_layers']
         self.latent_dims = cfg['latent_dims']

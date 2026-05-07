@@ -144,33 +144,53 @@ class TokenAttentionPool(nn.Module):
 
 
 class SpatialTemporalDiTBlock(nn.Module):
-    def __init__(self, hidden_size, num_heads, mlp_ratio=4.0, dropout=0.0):
+    def __init__(self, hidden_size, num_heads, mlp_ratio=4.0, dropout=0.0, dit_attn_mode="spatio_temporal"):
         super().__init__()
+        valid_modes = {"spatio_temporal", "self_attention"}
+        if dit_attn_mode not in valid_modes:
+            raise ValueError(
+                f"Unsupported dit_attn_mode '{dit_attn_mode}'. Supported: {sorted(valid_modes)}."
+            )
+        self.dit_attn_mode = dit_attn_mode
         self.norm_spatial = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
         self.spatial_attn = Attention(hidden_size, num_heads=num_heads, dropout=dropout)
-        self.norm_temporal = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
-        self.temporal_attn = Attention(hidden_size, num_heads=num_heads, dropout=dropout)
+        if self.dit_attn_mode == "spatio_temporal":
+            self.norm_temporal = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
+            self.temporal_attn = Attention(hidden_size, num_heads=num_heads, dropout=dropout)
+            modulation_dim = 9 * hidden_size
+        else:
+            self.norm_temporal = None
+            self.temporal_attn = None
+            modulation_dim = 6 * hidden_size
         self.norm_mlp = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
         self.mlp = Mlp(hidden_size, int(hidden_size * mlp_ratio), dropout=dropout)
         self.adaLN_modulation = nn.Sequential(
             nn.SiLU(),
-            nn.Linear(hidden_size, 9 * hidden_size, bias=True)
+            nn.Linear(hidden_size, modulation_dim, bias=True)
         )
 
     def forward(self, x, c):
-        shift_spatial, scale_spatial, gate_spatial, shift_temporal, scale_temporal, gate_temporal, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(c).chunk(9, dim=1)
         bsz, seq_len, joint_num, hidden = x.shape
 
-        spatial_in = modulate(self.norm_spatial(x), shift_spatial, scale_spatial)
-        spatial_in = spatial_in.reshape(bsz * seq_len, joint_num, hidden)
-        spatial_out = self.spatial_attn(spatial_in).reshape(bsz, seq_len, joint_num, hidden)
-        x = x + gate_spatial.view(bsz, 1, 1, hidden) * spatial_out
+        if self.dit_attn_mode == "spatio_temporal":
+            shift_spatial, scale_spatial, gate_spatial, shift_temporal, scale_temporal, gate_temporal, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(c).chunk(9, dim=1)
+            spatial_in = modulate(self.norm_spatial(x), shift_spatial, scale_spatial)
+            spatial_in = spatial_in.reshape(bsz * seq_len, joint_num, hidden)
+            spatial_out = self.spatial_attn(spatial_in).reshape(bsz, seq_len, joint_num, hidden)
+            x = x + gate_spatial.view(bsz, 1, 1, hidden) * spatial_out
 
-        temporal_in = modulate(self.norm_temporal(x), shift_temporal, scale_temporal)
-        temporal_in = temporal_in.transpose(1, 2).reshape(bsz * joint_num, seq_len, hidden)
-        temporal_out = self.temporal_attn(temporal_in)
-        temporal_out = temporal_out.reshape(bsz, joint_num, seq_len, hidden).transpose(1, 2)
-        x = x + gate_temporal.view(bsz, 1, 1, hidden) * temporal_out
+            temporal_in = modulate(self.norm_temporal(x), shift_temporal, scale_temporal)
+            temporal_in = temporal_in.transpose(1, 2).reshape(bsz * joint_num, seq_len, hidden)
+            temporal_out = self.temporal_attn(temporal_in)
+            temporal_out = temporal_out.reshape(bsz, joint_num, seq_len, hidden).transpose(1, 2)
+            x = x + gate_temporal.view(bsz, 1, 1, hidden) * temporal_out
+        else:
+            shift_attn, scale_attn, gate_attn, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(c).chunk(6, dim=1)
+            # Vanilla self-attention over all space-time tokens for ablation.
+            joint_in = modulate(self.norm_spatial(x), shift_attn, scale_attn)
+            joint_in = joint_in.reshape(bsz, seq_len * joint_num, hidden)
+            joint_out = self.spatial_attn(joint_in).reshape(bsz, seq_len, joint_num, hidden)
+            x = x + gate_attn.view(bsz, 1, 1, hidden) * joint_out
 
         x = x + gate_mlp.view(bsz, 1, 1, hidden) * self.mlp(modulate(self.norm_mlp(x), shift_mlp, scale_mlp))
         return x
@@ -205,6 +225,7 @@ class MotionTransformerTwoStage(nn.Module):
                  dropout=0.2,
                  activation="gelu",
                  stage1_num_layers=None,
+                 dit_attn_mode="spatio_temporal",
                  **kargs):
         super().__init__()
         del activation, kargs
@@ -239,6 +260,7 @@ class MotionTransformerTwoStage(nn.Module):
             raise ValueError(
                 f"stage1_num_layers must be in [1, {num_layers - 1}], got {self.stage1_num_layers}."
             )
+        self.dit_attn_mode = dit_attn_mode
 
         self.motion_joint_embed = nn.Linear(3, latent_dim)
         self.t_embedder = nn.Sequential(
@@ -292,7 +314,13 @@ class MotionTransformerTwoStage(nn.Module):
         self.robot_joint_pos_embed = nn.Parameter(torch.zeros(1, 1, self.robot_cond_joint_num, latent_dim)) if self.robot_cond_joint_num > 0 else None
 
         self.blocks = nn.ModuleList([
-            SpatialTemporalDiTBlock(latent_dim, num_heads, mlp_ratio=ff_size / latent_dim, dropout=dropout)
+            SpatialTemporalDiTBlock(
+                latent_dim,
+                num_heads,
+                mlp_ratio=ff_size / latent_dim,
+                dropout=dropout,
+                dit_attn_mode=self.dit_attn_mode,
+            )
             for _ in range(num_layers)
         ])
         self.final_layer = FinalLayerJoint(latent_dim)

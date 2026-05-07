@@ -21,6 +21,7 @@ ddim_timesteps: 100
 scheduler: 'Cosine'
 model_variant: 'two_stage'
 stage1_num_layers: 2
+dit_attn_mode: 'spatio_temporal'  # 'spatio_temporal' or 'self_attention'
 num_layers: 9
 num_heads: 8
 latent_dims: 512
