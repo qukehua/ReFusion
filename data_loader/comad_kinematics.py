@@ -47,7 +47,8 @@ COMAD_P1_JOINTS_LEFT = [7, 8, 9, 10, 11, 12, 13]
 COMAD_P1_JOINTS_RIGHT = [14, 15, 16, 17, 18, 19, 20]
 
 # Official InteRACT loaders do not use all 25 CoMaD markers for forecasting.
-# HR uses a compact Alice/P1 marker set; HH uses a compact upper-body/arms set.
+# HR uses a compact Alice/P1 marker set; upper_body/HH uses arm markers that
+# render like an upper-body skeleton.
 COMAD_HR_VIS_JOINTS = [0, 1, 2, 3, 4, 5, 6, 9, 10]
 COMAD_HH_VIS_JOINTS = [2, 9, 16, 7, 14, 13, 20, 8, 15]
 
@@ -81,25 +82,27 @@ def comad_p1_links():
 
 def comad_visual_mode(cfg):
     mode = str(getattr(cfg, "comad_vis_joint_set", "auto")).lower()
-    if mode in {"hr", "hh"}:
-        return mode
+    if mode in {"hh", "upper_body", "upperbody", "arms"}:
+        return "upper_body"
+    if mode == "hr":
+        return "hr"
 
     interactions = getattr(cfg, "comad_test_interactions", None)
     if interactions == {"HH"}:
-        return "hh"
+        return "upper_body"
     return "hr"
 
 
 def comad_visual_joint_indices(cfg):
     mode = comad_visual_mode(cfg)
-    if mode == "hh":
+    if mode == "upper_body":
         return COMAD_HH_VIS_JOINTS
     return COMAD_HR_VIS_JOINTS
 
 
 def comad_visual_skeleton(cfg):
     mode = comad_visual_mode(cfg)
-    if mode == "hh":
+    if mode == "upper_body":
         parents = [-1, 0, 0, 1, 2, 3, 4, 5, 6]
         return Skeleton(
             parents=parents,
