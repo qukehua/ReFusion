@@ -48,6 +48,7 @@ vis_auto_axis: True
 vis_axis_padding: 0.25
 vis_line_width: 1.5
 vis_title_fontsize: 16
+vis_output_only: True
 
 # CoMad specific settings
 include_person2: True

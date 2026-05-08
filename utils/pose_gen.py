@@ -36,8 +36,8 @@ def _select_visual_samples(traj_est, cfg):
 
 def _attach_robot_joints_for_vis(pred_human, gt_full, cfg):
     """
-    For human-only prediction, append GT robot / Spot joints so pred panels draw the
-    full scene (human forecast + known robot) like context/gt.
+    For human-only prediction, append GT context joints so pred panels draw the
+    full scene (human forecast + known robot/person context) like context/gt.
     """
     if getattr(cfg, 'vis_output_only', False):
         return pred_human
@@ -55,14 +55,17 @@ def _attach_robot_joints_for_vis(pred_human, gt_full, cfg):
     elif ds == 'chico':
         if not getattr(cfg, 'include_robot', False):
             return pred_human
+    elif ds == 'comad':
+        if not (getattr(cfg, 'include_person2', False) or getattr(cfg, 'include_robot', False)):
+            return pred_human
     else:
         return pred_human
 
     # gt_full: [T, J_full, 3], pred_human: [N, T, J_human, 3]
-    robot_gt = gt_full[:, cfg.output_total_joints:, :]
-    robot_gt = np.expand_dims(robot_gt, axis=0)
-    robot_gt = np.repeat(robot_gt, pred_human.shape[0], axis=0)
-    return np.concatenate([pred_human, robot_gt], axis=2)
+    context_gt = gt_full[:, cfg.output_total_joints:, :]
+    context_gt = np.expand_dims(context_gt, axis=0)
+    context_gt = np.repeat(context_gt, pred_human.shape[0], axis=0)
+    return np.concatenate([pred_human, context_gt], axis=2)
 
 
 def _pose_for_visualization(pose, cfg):
