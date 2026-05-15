@@ -239,10 +239,22 @@ class Trainer:
         self.val_losses = AverageMeter()
         self.val_noise_losses = AverageMeter()
         self.val_velocity_losses = AverageMeter()
-        self.generator_val = self.dataset['test'].sampling_generator(num_samples=self.cfg.num_val_data_sample,
-                                                                     batch_size=self.cfg.batch_size,
-                                                                     aug=False)
-        self.logger.info(f"Starting val epoch {self.iter}:")
+        val_key = (
+            'val'
+            if self.cfg.dataset == '3dpw' and 'val' in self.dataset
+            else 'test'
+        )
+        self.generator_val = self.dataset[val_key].sampling_generator(
+            num_samples=self.cfg.num_val_data_sample,
+            batch_size=self.cfg.batch_size,
+            aug=False,
+        )
+        val_split_note = (
+            '3DPW sequenceFiles/validation'
+            if val_key == 'val'
+            else 'test split'
+        )
+        self.logger.info(f"Starting val epoch {self.iter} (loss on {val_split_note}):")
 
     def run_val_step(self):
         np_state = np.random.get_state()

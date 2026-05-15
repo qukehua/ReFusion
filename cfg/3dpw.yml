@@ -13,8 +13,8 @@ lr: 1.e-4
 gamma: 0.7
 
 n_pre: 20
-multimodal_path: '/data/user/qkh/datasets/3DPW/multimodal/t_his25_3dpw_test_downtown_2p_thre0.250_t_pred100_thre0.250_filtered.npz'
-data_candi_path: '/data/user/qkh/datasets/3DPW/multimodal/data_candi_3dpw_test_downtown_2p_t_his25_t_pred100_skiprate20.npz'
+multimodal_path: '/data/user/qkh/datasets/3DPW/multimodal/t_his25_3dpw_test_all_2p_thre0.500_t_pred100_thre0.100_filtered.npz'
+data_candi_path: '/data/user/qkh/datasets/3DPW/multimodal/data_candi_3dpw_test_all_2p_t_his25_t_pred100_skiprate20.npz'
 padding: 'LastFrame'
 Complete: True
 noise_steps: 1000
@@ -53,11 +53,14 @@ vis_camera_dist: 8.0
 vis_sample_strategy: 'median'
 vis_candidate_k: 50
 
-# 3DPW setup.
-# train split uses all scenes when scene_filter_train is null.
-# test split uses only downtown (2-person clips only).
+# 3DPW setup (official-style splits):
+# - Training: sequenceFiles/train (scene_filter_train; null = all scenes).
+# - Loss during training ("val" in logs): sequenceFiles/validation, not test.
+# - Eval / pred / multimodal npz: sequenceFiles/test (scene_filter_test; null = all scenes).
+# scene_filter_val: optional; if null, same filtering as scene_filter_test on the validation folder.
 scene_filter_train: null
-scene_filter_test: 'downtown'
+scene_filter_test: null
+scene_filter_val: null
 require_two_person: True
 
 data_path: '/data/user/qkh/datasets/3DPW'

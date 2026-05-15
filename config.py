@@ -174,6 +174,8 @@ class Config:
         self.harper3d_multimodal_dir = cfg.get('harper3d_multimodal_dir', '/data3/user/qkh/DATASET/TransFusion/HARPER')
         self.scene_filter_train = cfg.get('scene_filter_train', None)
         self.scene_filter_test = cfg.get('scene_filter_test', None)
+        # 3DPW: optional scene filter for official validation split; defaults to scene_filter_test.
+        self.scene_filter_val = cfg.get('scene_filter_val', None)
         self.require_two_person = cfg.get('require_two_person', True)
         self.cmu_scene_filter = cfg.get('cmu_scene_filter', None)
         self.cmu_file_filter = cfg.get('cmu_file_filter', None)

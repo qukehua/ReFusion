@@ -34,6 +34,9 @@ def _parse_scene_filter(scene_filter):
     if scene_filter is None:
         return None
     if isinstance(scene_filter, str):
+        s = scene_filter.strip().lower()
+        if s in ("", "all", "none"):
+            return None
         return {x.strip().lower() for x in scene_filter.split(",") if x.strip()}
     return {str(x).strip().lower() for x in scene_filter if str(x).strip()}
 
@@ -187,7 +190,12 @@ def main():
         help="Output directory for multimodal npz files",
     )
     parser.add_argument("--split", type=str, default="test", choices=["train", "val", "test"], help="Split to preprocess")
-    parser.add_argument("--scene_filter", type=str, default="downtown", help="Comma-separated scenes, e.g. courtyard,downtown")
+    parser.add_argument(
+        "--scene_filter",
+        type=str,
+        default=all,
+        help="Comma-separated scenes (e.g. courtyard,downtown). Use 'all' or empty string for no filtering (all scenes in that split).",
+    )
     parser.add_argument("--require_two_person", action="store_true", help="Keep only exactly-2-person sequences")
     parser.add_argument("--t_his", type=int, default=25, help="History frames")
     parser.add_argument("--t_pred", type=int, default=100, help="Prediction frames")

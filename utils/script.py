@@ -65,7 +65,8 @@ def create_model_and_diffusion(cfg):
 def dataset_split(cfg):
     """
     output: dataset_dict, dataset_multi_test
-    dataset_dict has two keys: 'train', 'test' for enumeration in train and validation.
+    dataset_dict: 'train' always; 'test' always (final eval / multimodal). For 3dpw, 'val'
+    is the official validation split used during training instead of test (protocol).
     dataset_multi_test is used to create multi-modal data for metrics.
     """
     if cfg.dataset == 'harper3d':
@@ -179,6 +180,9 @@ def dataset_split(cfg):
     elif cfg.dataset == '3dpw':
         train_scene = getattr(cfg, 'scene_filter_train', None)
         test_scene = getattr(cfg, 'scene_filter_test', None)
+        val_scene = getattr(cfg, 'scene_filter_val', None)
+        if val_scene is None:
+            val_scene = test_scene
         dataset = dataset_cls(
             'train',
             cfg.t_his,
@@ -190,6 +194,16 @@ def dataset_split(cfg):
             use_data_aug=cfg.use_data_aug,
             aug_rotate_prob=cfg.aug_rotate_prob,
             aug_reverse_prob=cfg.aug_reverse_prob,
+        )
+        dataset_val = dataset_cls(
+            'val',
+            cfg.t_his,
+            cfg.t_pred,
+            actions='all',
+            data_path=cfg.data_path,
+            scene_filter=val_scene,
+            require_two_person=getattr(cfg, 'require_two_person', True),
+            use_data_aug=False,
         )
         dataset_test = dataset_cls(
             'test',
@@ -211,6 +225,7 @@ def dataset_split(cfg):
             multimodal_path=cfg.multimodal_path,
             data_candi_path=cfg.data_candi_path,
         )
+        return {'train': dataset, 'val': dataset_val, 'test': dataset_test}, dataset_multi_test
     elif cfg.dataset == 'cmu_mocap':
         cmu_scene = getattr(cfg, 'cmu_scene_filter', None)
         cmu_file = getattr(cfg, 'cmu_file_filter', None)
