@@ -1,4 +1,4 @@
-# We will realease the data_loader part after the paper is accepted.
+# We will release the data_loader part after the paper is accepted.
 
 
 ## Visualization Results 
