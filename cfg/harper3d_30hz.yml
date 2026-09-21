@@ -1,0 +1,65 @@
+dataset: 'harper3d'
+# 30hz: 25 frames = 0.83 seconds history, 100 frames = 3.33 seconds prediction
+seed: 42
+t_his: 25
+t_pred: 100
+batch_size: 64
+eval_batch_size: 64  # chunked eval to avoid OOM during DDIM sampling
+num_epoch: 100
+# scaled from [100, 200, 300, 400, 500] for a 101-epoch run
+milestone: [20, 40, 60, 80, 100]
+save_model_interval: 20
+num_data_sample: 50000
+num_val_data_sample: 5000
+lr: 3.e-4  #original
+
+n_pre: 100  # full P-frame future DCT spectrum (Eq. 8)
+weight_decay: 0.01  # AdamW; explicitly disclosed implementation choice
+adam_betas: [0.9, 0.999]
+adam_eps: 1.e-8
+# Set to 'auto' to auto-construct based on fps
+multimodal_path: '/data/user/qkh/datasets/HARPER/multimodal/t_his25_30hz_thre0.500_t_pred100_thre0.100_filtered.npz'
+data_candi_path: '/data/user/qkh/datasets/HARPER/multimodal/data_candi_30hz_t_his25_t_pred100_skiprate20.npz'
+padding: 'LastFrame'   # Zero or LastFrame
+Complete: False  # observations are conditions only; no inpainting
+noise_steps: 1000
+ddim_timesteps: 100
+scheduler: 'Cosine'  # 'Cosine' 'Linear' 'Sqrt' 'Sigmoid' 'Logarithmic'
+model_variant: 'two_stage'  # 'default' or 'two_stage' 
+stage1_num_layers: 2  # Stage 1: Block 1-2, Stage 2: Block 3-9
+dit_attn_mode: 'spatio_temporal'  # 'spatio_temporal' or 'self_attention'
+num_layers: 9
+num_heads: 8
+latent_dims: 512
+#dropout: 0.2     #original
+dropout: 0.2
+
+#modulation settings
+mod_train: 1.0  # always condition the Eq. (21) training objective
+mod_test: 1.0
+dct_norm_enable: False
+disable_tensorboard: True
+use_data_aug: True
+aug_rotate_prob: 0.5
+aug_reverse_prob: 0.2
+use_velocity_input: False
+velocity_loss_weight: 0.0 #1.e-5
+#visualization settings
+vis_azim: 0.0
+vis_elev: 15.0
+vis_axis_radius: 2.5
+vis_size: 3.0
+vis_dpi: 80
+vis_auto_axis: True
+vis_axis_padding: 0.25
+vis_line_width: 1.5
+vis_title_fontsize: 16
+# Pred GIF: append GT Spot to each sample so robot + human appear; widen margin if clipped (vis_axis_padding).
+vis_skip_attach_robot: False
+# Harper3D specific settings
+include_spot: True    #human joints omly: False
+use_spot_condition: True    #human joints omly: False
+predict_human_only: True
+data_path: '/data3/user/qkh/HARPER/HARPER _3D panoptic'
+fps: '30hz'
+

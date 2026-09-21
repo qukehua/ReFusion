@@ -1,0 +1,71 @@
+dataset: '3dpw'
+predict_human_only: True  # Person 1 is the target; Person 2 supplies observed context
+use_partner_condition: True
+seed: 42
+t_his: 25
+t_pred: 100
+batch_size: 32
+eval_batch_size: 32
+num_epoch: 100
+milestone: [20, 40, 60, 80, 100]
+save_model_interval: 20
+num_data_sample: 50000
+num_val_data_sample: 5000
+lr: 3.e-4
+gamma: 0.8
+
+n_pre: 100  # full P-frame future DCT spectrum (Eq. 8)
+weight_decay: 0.01  # AdamW; explicitly disclosed implementation choice
+adam_betas: [0.9, 0.999]
+adam_eps: 1.e-8
+multimodal_path: '/data/user/qkh/datasets/3DPW/multimodal/t_his25_3dpw_test_all_2p_thre0.500_t_pred100_thre0.100_filtered.npz'
+data_candi_path: '/data/user/qkh/datasets/3DPW/multimodal/data_candi_3dpw_test_all_2p_t_his25_t_pred100_skiprate20.npz'
+padding: 'LastFrame'
+Complete: False  # observations are conditions only; no inpainting
+noise_steps: 1000
+ddim_timesteps: 100
+scheduler: 'Cosine'
+model_variant: 'two_stage'
+stage1_num_layers: 2
+dit_attn_mode: 'spatio_temporal'  # 'spatio_temporal' or 'self_attention'
+num_layers: 9
+num_heads: 8
+latent_dims: 512
+dropout: 0.2
+
+# modulation settings
+mod_train: 1.0
+mod_test: 1.0
+dct_norm_enable: False
+disable_tensorboard: True
+use_data_aug: True
+aug_rotate_prob: 0.5
+aug_reverse_prob: 0.2
+use_velocity_input: False
+velocity_loss_weight: 0.0
+
+# visualization settings
+vis_azim: -90.0
+vis_elev: 5.0
+vis_axis_radius: 2.5
+vis_size: 3.8
+vis_dpi: 80
+vis_auto_axis: True
+vis_axis_padding: 0.8
+vis_line_width: 1.5
+vis_title_fontsize: 16
+vis_camera_dist: 8.0
+vis_sample_strategy: 'median'
+vis_candidate_k: 50
+
+# 3DPW setup (official-style splits):
+# - Training: sequenceFiles/train (scene_filter_train; null = all scenes).
+# - Loss during training ("val" in logs): sequenceFiles/validation, not test.
+# - Eval / pred / multimodal npz: sequenceFiles/test (scene_filter_test; null = all scenes).
+# scene_filter_val: optional; if null, same filtering as scene_filter_test on the validation folder.
+scene_filter_train: null
+scene_filter_test: null
+scene_filter_val: null
+require_two_person: True
+
+data_path: '/data/user/qkh/datasets/3DPW'

@@ -1,0 +1,107 @@
+dataset: 'comad'
+seed: 42
+t_his: 15
+t_pred: 15
+batch_size: 64
+eval_batch_size: 256
+num_epoch: 100
+milestone: [20, 40, 60, 80, 100]
+save_model_interval: 20
+num_data_sample: 50000
+num_val_data_sample: 5000
+lr: 3.e-4
+
+n_pre: 15  # full P-frame future DCT spectrum (Eq. 8)
+weight_decay: 0.01  # AdamW; explicitly disclosed implementation choice
+adam_betas: [0.9, 0.999]
+adam_eps: 1.e-8
+multimodal_path: '/data/user/qkh/datasets/CoMad/multimodal/t_his15_comad_p1-9_thre0.025_t_pred15_thre0.100_filtered.npz'
+data_candi_path: '/data/user/qkh/datasets/CoMad/multimodal/data_candi_comad_p1-9_robot-2_t_his15_t_pred15_skiprate20.npz'
+padding: 'LastFrame'
+Complete: False  # observations are conditions only; no inpainting
+noise_steps: 1000
+ddim_timesteps: 100
+scheduler: 'Cosine'
+model_variant: 'two_stage'
+stage1_num_layers: 2
+dit_attn_mode: 'spatio_temporal'  # 'spatio_temporal' or 'self_attention'
+num_layers: 9
+num_heads: 8
+latent_dims: 512
+dropout: 0.2
+
+# modulation settings
+mod_train: 1.0  # always condition the Eq. (21) training objective
+mod_test: 1.0
+dct_norm_enable: False
+disable_tensorboard: True
+use_data_aug: True
+aug_rotate_prob: 0.5
+aug_reverse_prob: 0.2
+use_velocity_input: False
+velocity_loss_weight: 0.0
+
+# visualization settings
+vis_azim: 0.0
+vis_elev: 15.0
+vis_axis_radius: 2.5
+vis_size: 3.0
+vis_dpi: 80
+vis_auto_axis: True
+vis_axis_padding: 0.25
+vis_line_width: 1.5
+vis_title_fontsize: 16
+vis_output_only: True
+comad_vis_joint_set: paper
+
+# CoMad specific settings
+comad_p1_joints: 9
+comad_p2_joints: 0
+comad_robot_joints: 2
+# Paper human d=27: upper back, shoulders, elbows, wrists, hands.
+# Full 25-marker mapping: BackTop, L/RShoulderBack, L/RElbowOut,
+# L/RWristOut, L/RHandOut.
+comad_p1_joint_indices: [2, 9, 16, 7, 14, 13, 20, 8, 15]
+# Some HR JSONs are already reduced to 11 P1 markers; this fallback follows the
+# official HR loader compact marker order when full 25-marker indices are absent.
+comad_p1_fallback_joint_indices: [0, 1, 2, 3, 4, 5, 6, 9, 10]
+# Paper robot j=6: two end-effector 3-D points corresponding to hand and wrist.
+comad_robot_joint_indices: [10, 11]
+comad_robot_fallback_joint_indices: [8, 9]
+drop_root_joint: False
+include_person2: False
+include_robot: True
+predict_human_only: True
+# Paths: train|test/<action>/<HH|HR>/<id>/...
+# Interaction filter options: 'all' | 'HR' | 'HH' | 'HR HH' | [HR, HH]
+# Current setting below is HR-only for both train and eval.
+# To train+eval on both HR and HH, set BOTH to: HR HH
+comad_train_interactions: HR
+comad_test_interactions: HR
+# Pred GIF: InteRACT interact/utils/comad_hr.py Motive fix (-x, z, y). Try false for HH-only quirks.
+comad_motive_to_interact_axes: true
+
+# Scene-wise condition control
+# HR scenes -> use robot joints as condition (Robot branch must exist)
+use_hr_robot_condition: True
+# HH scenes -> use Person_2 joints as condition (Person_2 branch must exist)
+use_hh_human_condition: False
+
+# ---------------- Recommended switches ----------------
+# [A] HR-only (current):
+# include_person2: False
+# include_robot: True
+# comad_train_interactions: HR
+# comad_test_interactions: HR
+# use_hr_robot_condition: True
+# use_hh_human_condition: False
+#
+# [B] HR+HH train/eval (recommended if you want both interaction types):
+# include_person2: True
+# include_robot: True
+# comad_train_interactions: HR HH
+# comad_test_interactions: HR HH
+# use_hr_robot_condition: True
+# use_hh_human_condition: True
+
+data_path: '/data/user/qkh/datasets/CoMad'
