@@ -2,7 +2,6 @@ import os
 import numpy as np
 from utils.pose_gen import pose_generator
 from utils.visualization import render_animation
-from data_loader.comad_kinematics import comad_visual_skeleton
 
 
 def demo_visualize(mode, cfg, model, diffusion, dataset):
@@ -34,6 +33,7 @@ def demo_visualize(mode, cfg, model, diffusion, dataset):
             use_legacy_visualization = cfg.dataset == 'harper3d'
             vis_skeleton = dataset['test'].skeleton
             if cfg.dataset == 'comad' and getattr(cfg, 'vis_output_only', False):
+                from data_loader.comad_kinematics import comad_visual_skeleton
                 vis_skeleton = comad_visual_skeleton(cfg)
                 axis_bbox_num_joints = None
             render_animation(vis_skeleton, pose_gen, ['TransFusion'], cfg.t_his, ncol=cfg.vis_col + 2,

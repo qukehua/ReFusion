@@ -8,7 +8,7 @@ def compute_all_metrics(pred, gt, gt_multi):
     calculate all metrics
 
     Args:
-        pred: candidate prediction, shape as [50, t_pred, 3 * joints_num]
+        pred: candidate prediction, shape as [K, t_pred, 3 * joints_num]
         gt: ground truth, shape as [1, t_pred, 3 * joints_num]
         gt_multi: multi-modal ground truth, shape as [multi_modal, t_pred, 3 * joints_num]
 
@@ -26,13 +26,19 @@ def compute_all_metrics(pred, gt, gt_multi):
     else:
         gt = gt.to(device)
 
+    gt_multi = torch.as_tensor(gt_multi, device=device, dtype=pred.dtype)
+    if (pred.ndim != 3 or min(pred.shape) < 1 or gt.shape != (1, *pred.shape[1:])
+            or gt_multi.ndim != 3 or gt_multi.shape[0] < 1 or gt_multi.shape[1:] != pred.shape[1:]):
+        raise ValueError('Expected pred [K,P,D], gt [1,P,D], and nonempty gt_multi [M,P,D].')
+    if not all(torch.isfinite(x).all() for x in (pred, gt, gt_multi)):
+        raise ValueError('Metrics require finite predictions and ground truth.')
+
     if pred.shape[0] == 1:
-        diversity = 0.0
+        diversity = pred.new_zeros(())
     else:
         dist_diverse = torch.pdist(pred.reshape(pred.shape[0], -1))
         diversity = dist_diverse.mean()
 
-    gt_multi = torch.from_numpy(gt_multi).to(device)
     gt_multi_gt = torch.cat([gt_multi, gt], dim=0)
 
     gt_multi_gt = gt_multi_gt[None, ...]

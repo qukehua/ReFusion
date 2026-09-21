@@ -41,7 +41,7 @@ dct_norm_enable: False
 disable_tensorboard: True
 use_data_aug: True
 aug_rotate_prob: 0.5
-aug_reverse_prob: 0.2
+aug_reverse_prob: 0.3
 use_velocity_input: False
 velocity_loss_weight: 0.0 #1.e-5
 #visualization settings
@@ -58,6 +58,8 @@ vis_title_fontsize: 16
 vis_skip_attach_robot: False
 # Harper3D specific settings
 include_spot: True    #human joints omly: False
+# Author-confirmed raw 23-point convention: exclude camera-related points 21/22.
+harper_spot_joint_indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 use_spot_condition: True    #human joints omly: False
 predict_human_only: True
 data_path: '/data3/user/qkh/HARPER/HARPER _3D panoptic'

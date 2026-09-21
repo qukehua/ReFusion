@@ -2,10 +2,6 @@ from torch import tensor
 from utils import *
 from utils.script import sample_preprocessing
 from utils.motion_latent import prepare_motion_inputs, decode_future_motion
-from data_loader.comad_kinematics import (
-    comad_fix_orientation_motive_to_interact,
-    comad_visual_joint_indices,
-)
 
 
 def _select_visual_samples(traj_est, cfg):
@@ -80,6 +76,7 @@ def _attach_robot_joints_for_vis(pred_human, gt_full, cfg):
 def _pose_for_visualization(pose, cfg):
     if getattr(cfg, 'vis_output_only', False):
         if getattr(cfg, 'dataset', None) == 'comad':
+            from data_loader.comad_kinematics import comad_visual_joint_indices
             return pose[..., comad_visual_joint_indices(cfg), :].copy()
         return pose[..., :cfg.output_total_joints, :].copy()
     return pose
@@ -103,13 +100,6 @@ def pose_generator(data_set, model_select, diffusion, cfg, mode=None,
                 data = data_set.sample_iter_action(action, cfg.dataset)
             else:
                 raise NotImplementedError(f"unknown pose generator mode: {mode}")
-
-            # InteRACT CoMaD-HR uses Motive->lab frame fix_orientation before training/viz;
-            # apply here for pred GIFs so matplotlib axes match official pipelines.
-            if getattr(cfg, "dataset", None) == "comad" and getattr(
-                cfg, "comad_motive_to_interact_axes", False
-            ):
-                data = comad_fix_orientation_motive_to_interact(data)
 
             # gt
             gt = data[0].copy()
@@ -146,10 +136,6 @@ def pose_generator(data_set, model_select, diffusion, cfg, mode=None,
             traj_est = post_process(traj_est, cfg)
             traj_est = _pose_for_visualization(traj_est, cfg)
             traj_est = _attach_robot_joints_for_vis(traj_est, gt[0], cfg)
-            if getattr(cfg, "dataset", None) == "comad" and getattr(
-                cfg, "comad_motive_to_interact_axes", False
-            ):
-                traj_est = comad_fix_orientation_motive_to_interact(traj_est)
             traj_est = _select_visual_samples(traj_est, cfg)
 
             if k == 0:
@@ -164,4 +150,8 @@ def pose_generator(data_set, model_select, diffusion, cfg, mode=None,
             else:
                 draw_order_indicator = j + draw_order_indicator + 2 + 1
 
+        if cfg.dataset == 'comad' and getattr(cfg, 'comad_motive_to_interact_axes', False):
+            from data_loader.comad_kinematics import comad_fix_orientation_motive_to_interact
+            # Apply a display-only transform once, after inference, to every pose.
+            poses = {key: comad_fix_orientation_motive_to_interact(value) for key, value in poses.items()}
         yield poses

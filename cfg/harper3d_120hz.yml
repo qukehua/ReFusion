@@ -37,7 +37,7 @@ dct_norm_enable: False
 disable_tensorboard: True
 use_data_aug: True
 aug_rotate_prob: 0.5
-aug_reverse_prob: 0.2
+aug_reverse_prob: 0.3
 use_velocity_input: False  
 velocity_loss_weight: 0  #1.e-5
 vis_azim: 0.0
@@ -52,6 +52,8 @@ vis_title_fontsize: 16
 # Harper3D specific settings
 data_path: '/data/user/qkh/datasets/HARPER/HARPER _3D panoptic'
 include_spot: True  # full ReFusion setting; False selects the human-only ablation
+# Author-confirmed raw 23-point convention: exclude camera-related points 21/22.
+harper_spot_joint_indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 use_spot_condition: True
 predict_human_only: True
 fps: '120hz'

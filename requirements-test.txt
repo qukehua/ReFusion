@@ -1,0 +1,11 @@
+# Verified CPU regression environment on Python 3.12.14.
+# Install the appropriate PyTorch build separately for GPU training.
+torch==2.14.0
+numpy==2.3.5
+scipy==1.18.1
+matplotlib==3.11.1
+pandas==3.0.1
+PyYAML==6.0.3
+tqdm==4.70.0
+tensorboardX==2.6.5
+pytest==9.1.1

@@ -1,6 +1,7 @@
 import yaml
 import os
 from utils import util, torch, generate_pad
+from utils.harper_layout import resolve_spot_joint_indices
 
 
 def update_config(cfg, args_dict):
@@ -29,8 +30,10 @@ def update_config(cfg, args_dict):
         raise ValueError('Future-only diffusion does not inpaint observations. Set Complete: False.')
     if cfg.weight_decay < 0:
         raise ValueError('AdamW weight_decay must be nonnegative.')
+    if not isinstance(cfg.eval_samples, int) or cfg.eval_samples < 1:
+        raise ValueError('eval_samples must be a positive integer.')
     cfg.diffusion_target = 'future_dct'
-    cfg.implementation_version = 'refusion_future_dct_v1'
+    cfg.implementation_version = 'refusion_future_dct_v2'
     # Eq. (1) uses D_T for observations; Eqs. (8), (24) use D_P for futures.
     # Never construct a DCT basis over the concatenated observation and future.
     for suffix, length in (('obs', cfg.t_his), ('pred', cfg.t_pred)):
@@ -117,6 +120,7 @@ class Config:
         self.seed = cfg.get('seed', 0)
         self.batch_size = cfg['batch_size']
         self.eval_batch_size = cfg.get('eval_batch_size', self.batch_size)
+        self.eval_samples = cfg.get('eval_samples', 50)
         self.normalize_data = cfg.get('normalize_data', False)
         self.t_his = cfg['t_his']
         self.t_pred = cfg['t_pred']
@@ -208,7 +212,10 @@ class Config:
         if self.dataset == 'harper3d':
             # Harper3D can use robot joints as conditioning while predicting only
             # human motion. We therefore track output and conditioning sizes separately.
-            self.total_joint_num = 44 if self.include_spot else 21
+            # Author-confirmed 23-point convention: exclude Spot 21/22.
+            self.harper_spot_joint_indices = resolve_spot_joint_indices(
+                cfg.get('harper_spot_joint_indices'))
+            self.total_joint_num = 42 if self.include_spot else 21
             self.output_total_joints = 21 if self.predict_human_only else self.total_joint_num
             self.joint_num = self.output_total_joints - 1
             self.cond_joint_num = self.total_joint_num - 1 if self.use_spot_condition else self.joint_num
@@ -264,7 +271,7 @@ class Config:
             self.joint_num = self.output_total_joints - 1
             self.cond_joint_num = self.total_joint_num - 1 if self.use_partner_condition else self.joint_num
         elif self.dataset == 'cmu_mocap':
-            # CMU loader synthesizes Person_2 from Person_1; default single person has 39 joints.
+            # CMU requires recorded, synchronized Person_1/Person_2 trajectories.
             # Person_1 is the prediction target; Person_2 is the observed interaction context.
             self.total_joint_num = cfg.get('cmu_total_joint_num', 78)
             self.cmu_person_joint_num = cfg.get('cmu_person_joint_num', self.total_joint_num // 2)

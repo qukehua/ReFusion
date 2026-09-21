@@ -240,7 +240,7 @@ class MotionTransformerTwoStage(nn.Module):
                  cond_frames=None,
                  latent_dim=512,
                  ff_size=1024,
-                 num_layers=8,
+                 num_layers=9,
                  num_heads=8,
                  dropout=0.2,
                  activation="gelu",
@@ -285,7 +285,7 @@ class MotionTransformerTwoStage(nn.Module):
             )
 
         if stage1_num_layers is None:
-            self.stage1_num_layers = max(1, num_layers // 2)
+            self.stage1_num_layers = min(2, num_layers)
         else:
             if not isinstance(stage1_num_layers, int):
                 raise ValueError(f"stage1_num_layers must be an integer, got {stage1_num_layers}.")
@@ -474,7 +474,7 @@ class MotionTransformerTwoStage(nn.Module):
         # Eq. (5), frequency branch: J_r and J_h can differ. Mean-pool robot
         # joints to [B,T,d], broadcast to each human joint, then attend over T.
         # Queries/keys/values all become [B*J_h,T,d], with no joint correspondence assumed.
-        robot_temporal_context = robot_tokens.mean(dim=2, keepdim=True).expand(-1, -1, self.human_cond_joint_num, -1)
+        robot_temporal_context = self.frequency_partner_context(robot_tokens)
         robot_temporal_context = robot_temporal_context.transpose(1, 2).reshape(
             bsz * self.human_cond_joint_num, seq_len, self.latent_dim
         )
@@ -494,6 +494,19 @@ class MotionTransformerTwoStage(nn.Module):
             self.interaction_global_pool(stage2_tokens.reshape(bsz, num_coefficients * self.human_cond_joint_num, self.latent_dim))
         )
         return stage2_tokens, interaction_global
+
+    def frequency_partner_context(self, partner_tokens):
+        """Explicit joint alignment missing from the manuscript's Eq. (5).
+
+        R[b,f,h,:] = sum_r X_R[b,f,r,:] / J_r, for each target joint h.
+        [B,T,J_r,d] -> [B,T,J_h,d]. Spatial attention keeps all partner
+        joints; only the frequency K/V path pools them. This is a pooled
+        partner context, not an anatomical correspondence between skeletons.
+        See docs/reviewer3_alignment.md for the required equation amendment.
+        """
+        return partner_tokens.mean(dim=2, keepdim=True).expand(
+            -1, -1, self.human_cond_joint_num, -1
+        )
 
     def forward(self, x, timesteps, mod=None):
         if x.ndim != 3:

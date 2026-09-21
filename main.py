@@ -12,6 +12,7 @@ from tensorboardX import SummaryWriter
 from utils.training import Trainer
 from utils.evaluation import compute_stats
 from utils.experiment import save_experiment_manifest
+from utils.checkpoint import load_checkpoint
 
 try:
     import wandb
@@ -49,6 +50,9 @@ if __name__ == '__main__':
                         help='Future DCT coefficients; the paper configurations retain all t_pred coefficients')
     parser.add_argument('--batch_size', type=int, default=None)
     parser.add_argument('--eval_batch_size', type=int, default=None)
+    parser.add_argument('--eval_samples', type=int, default=None,
+                        help='Number of future samples per observation for metrics (default: 50)')
+    parser.add_argument('--data_path', type=str, default=None)
     parser.add_argument('--weight_decay', type=float, default=None)
     parser.add_argument('--save_model_interval', type=int, default=None)
     parser.add_argument('--ckpt', type=str, default='./checkpoints/h36m_ckpt.pt')
@@ -58,7 +62,7 @@ if __name__ == '__main__':
         default=None,
         help='train only: load weights from this checkpoint and continue training',
     )
-    parser.add_argument('--ema', type=bool, default=True)
+    parser.add_argument('--ema', action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument('--vis_col', type=int, default=10)
     parser.add_argument('--vis_row', type=int, default=3)
     parser.add_argument(
@@ -129,6 +133,7 @@ if __name__ == '__main__':
     """model"""
     model, diffusion = create_model_and_diffusion(cfg)
     manifest_path = save_experiment_manifest(cfg, model)
+    cfg.manifest_path = manifest_path
     logger.info('Resolved configuration and source hashes: %s', manifest_path)
 
     logger.info(">>> total params: {:.2f}M".format(
@@ -154,16 +159,14 @@ if __name__ == '__main__':
             wandb.finish()
 
     elif args.mode == 'eval':
-        ckpt = torch.load(args.ckpt, map_location=cfg.device)
-        model.load_state_dict(ckpt)
+        load_checkpoint(args.ckpt, model, cfg)
         multimodal_dict = get_multimodal_gt_full(logger, dataset_multi_test, args, cfg)
         compute_stats(diffusion, multimodal_dict, model, logger, cfg, wandb_logger=wandb_logger)
         if wandb_logger is not None:
             wandb.finish()
 
     else:
-        ckpt = torch.load(args.ckpt, map_location=cfg.device)
-        model.load_state_dict(ckpt)
+        load_checkpoint(args.ckpt, model, cfg)
         demo_visualize(args.mode, cfg, model, diffusion, dataset)
         if wandb_logger is not None:
             wandb.finish()

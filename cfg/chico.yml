@@ -38,7 +38,7 @@ dct_norm_enable: False
 disable_tensorboard: True
 use_data_aug: True
 aug_rotate_prob: 0.5
-aug_reverse_prob: 0.2
+aug_reverse_prob: 0.3
 use_velocity_input: False
 velocity_loss_weight: 0.0
 

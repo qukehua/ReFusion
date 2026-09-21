@@ -7,6 +7,7 @@ from utils import *
 from utils.evaluation import compute_stats
 from utils.pose_gen import pose_generator
 from utils.motion_latent import prepare_motion_inputs, encode_future, encode_observation
+from utils.checkpoint import load_checkpoint, save_checkpoint
 
 
 class EMA:
@@ -85,14 +86,11 @@ class Trainer:
             self.ema_setup = None
 
         if resume_ckpt:
-            sd = torch.load(resume_ckpt, map_location=self.cfg.device)
+            load_checkpoint(resume_ckpt, self.model, self.cfg)
             if self.cfg.ema is True:
-                self.ema_model.load_state_dict(sd)
-                self.model.load_state_dict(sd)
+                self.ema_model.load_state_dict(self.model.state_dict())
                 # Past EMA warm-up so step_ema updates the average instead of resetting.
                 self.ema.step = max(self.ema.step, 2000)
-            else:
-                self.model.load_state_dict(sd)
             self.logger.info('Loaded weights from {} (resume from epoch {})'.format(
                 resume_ckpt, self.start_epoch))
 
@@ -179,7 +177,7 @@ class Trainer:
         self.logger.info(f"Starting training epoch {self.iter}:")
 
     def run_train_step(self):
-        num_batches = self.cfg.num_data_sample // self.cfg.batch_size
+        num_batches = (self.cfg.num_data_sample + self.cfg.batch_size - 1) // self.cfg.batch_size
         pbar = tqdm(self.generator_train, total=num_batches, 
                     desc=f"Epoch {self.iter}", leave=False, unit="batch")
         for traj_np in pbar:
@@ -210,9 +208,9 @@ class Trainer:
             if self.ema_setup is not None:
                 self.ema.step_ema(self.ema_model, self.model)
 
-            self.train_losses.update(loss.item())
-            self.train_noise_losses.update(noise_loss.item())
-            self.train_velocity_losses.update(0.0 if velocity_loss is None else velocity_loss.item())
+            self.train_losses.update(loss.item(), traj.shape[0])
+            self.train_noise_losses.update(noise_loss.item(), traj.shape[0])
+            self.train_velocity_losses.update(0.0 if velocity_loss is None else velocity_loss.item(), traj.shape[0])
             if self.tb_logger is not None:
                 self.tb_logger.add_scalar('Loss/train', loss.item(), self.iter)
                 self.tb_logger.add_scalar('Loss/train_noise', noise_loss.item(), self.iter)
@@ -253,13 +251,15 @@ class Trainer:
 
     def before_val_step(self):
         self.model.eval()
+        if self.ema_model is not None:
+            self.ema_model.eval()
         self.t_s = time.time()
         self.val_losses = AverageMeter()
         self.val_noise_losses = AverageMeter()
         self.val_velocity_losses = AverageMeter()
         val_key = (
             'val'
-            if self.cfg.dataset == '3dpw' and 'val' in self.dataset
+            if 'val' in self.dataset
             else 'test'
         )
         self.generator_val = self.dataset[val_key].sampling_generator(
@@ -268,7 +268,7 @@ class Trainer:
             aug=False,
         )
         val_split_note = (
-            '3DPW sequenceFiles/validation'
+            'held-out validation split'
             if val_key == 'val'
             else 'test split'
         )
@@ -299,16 +299,18 @@ class Trainer:
 
                     t = self.diffusion.sample_timesteps(traj.shape[0]).to(self.cfg.device)
                     x_t, noise = self.diffusion.noise_motion(traj_dct, t)
-                    predicted_noise = self.model(x_t, t, mod=traj_dct_mod)
+                    # Score the same parameters that after_val_step saves.
+                    validation_model = self.ema_model if self.ema_model is not None else self.model
+                    predicted_noise = validation_model(x_t, t, mod=traj_dct_mod)
                     noise_loss = self.criterion(predicted_noise, noise)
                     velocity_loss = self.compute_velocity_aux_loss(x_t, t, predicted_noise, traj)
                     loss = noise_loss
                     if velocity_loss is not None:
                         loss = loss + self.cfg.velocity_loss_weight * velocity_loss
 
-                    self.val_losses.update(loss.item())
-                    self.val_noise_losses.update(noise_loss.item())
-                    self.val_velocity_losses.update(0.0 if velocity_loss is None else velocity_loss.item())
+                    self.val_losses.update(loss.item(), traj.shape[0])
+                    self.val_noise_losses.update(noise_loss.item(), traj.shape[0])
+                    self.val_velocity_losses.update(0.0 if velocity_loss is None else velocity_loss.item(), traj.shape[0])
                     if self.tb_logger is not None:
                         self.tb_logger.add_scalar('Loss/val', loss.item(), self.iter)
                         self.tb_logger.add_scalar('Loss/val_noise', noise_loss.item(), self.iter)
@@ -343,10 +345,10 @@ class Trainer:
         if self.cfg.save_model_interval > 0 and (self.iter + 1) % self.cfg.save_model_interval == 0:
             if self.cfg.ema is True:
                 model_path = os.path.join(self.cfg.model_path, f"ckpt_ema_{self.iter + 1}.pt")
-                torch.save(self.ema_model.state_dict(), model_path)
+                save_checkpoint(model_path, self.ema_model, self.cfg, self.iter + 1, self.val_losses.avg)
             else:
                 model_path = os.path.join(self.cfg.model_path, f"ckpt_{self.iter + 1}.pt")
-                torch.save(self.model.state_dict(), model_path)
+                save_checkpoint(model_path, self.model, self.cfg, self.iter + 1, self.val_losses.avg)
             
             # Log model artifact to wandb
             if self.wandb_logger is not None:
@@ -357,10 +359,10 @@ class Trainer:
             self.best_val_loss = self.val_losses.avg
             if self.cfg.ema is True:
                 best_model_path = os.path.join(self.cfg.model_path, "best_ema.pt")
-                torch.save(self.ema_model.state_dict(), best_model_path)
+                save_checkpoint(best_model_path, self.ema_model, self.cfg, self.iter + 1, self.val_losses.avg)
             else:
                 best_model_path = os.path.join(self.cfg.model_path, "best.pt")
-                torch.save(self.model.state_dict(), best_model_path)
+                save_checkpoint(best_model_path, self.model, self.cfg, self.iter + 1, self.val_losses.avg)
 
             self.logger.info(
                 '====> New best model at epoch {}: val_loss={:.6f}, saved to {}'.format(

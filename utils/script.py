@@ -9,16 +9,7 @@ from utils.visualization import render_animation
 from models.default import MotionTransformer
 from models.condition_two_stage import MotionTransformerTwoStage
 from models.diffusion import Diffusion
-from data_loader.dataset_harper3d import DatasetHarper3D
-from data_loader.dataset_harper3d_multimodal import DatasetHarper3D_multi
-from data_loader.dataset_chico import DatasetCHICO
-from data_loader.dataset_chico_multimodal import DatasetCHICO_multi
-from data_loader.dataset_comad import DatasetCoMad
-from data_loader.dataset_comad_multimodal import DatasetCoMad_multi
-from data_loader.dataset_3dpw import Dataset3DPW
-from data_loader.dataset_3dpw_multimodal import Dataset3DPW_multi
-from data_loader.dataset_cmu_mocap import DatasetCMUMocap
-from data_loader.dataset_cmu_mocap_multimodal import DatasetCMUMocap_multi
+from importlib import import_module
 from scipy.spatial.distance import pdist, squareform
 
 
@@ -87,38 +78,39 @@ def dataset_split(cfg):
     is the official validation split used during training instead of test (protocol).
     dataset_multi_test is used to create multi-modal data for metrics.
     """
-    if cfg.dataset == 'harper3d':
-        dataset_cls = DatasetHarper3D
-        dataset_cls_multi = DatasetHarper3D_multi
-    elif cfg.dataset == 'chico':
-        dataset_cls = DatasetCHICO
-        dataset_cls_multi = DatasetCHICO_multi
-    elif cfg.dataset == 'comad':
-        dataset_cls = DatasetCoMad
-        dataset_cls_multi = DatasetCoMad_multi
-    elif cfg.dataset == '3dpw':
-        dataset_cls = Dataset3DPW
-        dataset_cls_multi = Dataset3DPW_multi
-    elif cfg.dataset == 'cmu_mocap':
-        dataset_cls = DatasetCMUMocap
-        dataset_cls_multi = DatasetCMUMocap_multi
-    else:
-        raise ValueError(f"Unsupported dataset '{cfg.dataset}'. Supported: 'harper3d', 'chico', 'comad', '3dpw', 'cmu_mocap'.")
+    names = {'harper3d': 'DatasetHarper3D', 'chico': 'DatasetCHICO',
+             'comad': 'DatasetCoMad', '3dpw': 'Dataset3DPW', 'cmu_mocap': 'DatasetCMUMocap'}
+    if cfg.dataset not in names:
+        raise ValueError(f'Unsupported dataset {cfg.dataset!r}.')
+    module = 'data_loader.dataset_' + cfg.dataset
+    try:
+        dataset_cls = getattr(import_module(module), names[cfg.dataset])
+        dataset_cls_multi = getattr(import_module(module + '_multimodal'), names[cfg.dataset] + '_multi')
+    except ModuleNotFoundError as exc:
+        if exc.name and (exc.name == 'data_loader' or exc.name.startswith('data_loader.')):
+            raise RuntimeError(
+                'Dataset loaders are private pending paper acceptance. Place the authors\' '
+                'loader sources in data_loader/ to train or evaluate. Core model tests do not require them.'
+            ) from exc
+        raise
 
     if cfg.dataset == 'harper3d':
         dataset = dataset_cls('train', cfg.t_his, cfg.t_pred, actions='all',
                               data_path=cfg.data_path, include_spot=cfg.include_spot,
+                              spot_joint_indices=cfg.harper_spot_joint_indices,
                               fps=cfg.fps,
                               use_data_aug=cfg.use_data_aug,
                               aug_rotate_prob=cfg.aug_rotate_prob,
                               aug_reverse_prob=cfg.aug_reverse_prob)
         dataset_test = dataset_cls('test', cfg.t_his, cfg.t_pred, actions='all',
                                    data_path=cfg.data_path, include_spot=cfg.include_spot,
+                                   spot_joint_indices=cfg.harper_spot_joint_indices,
                                    fps=cfg.fps,
                                    use_data_aug=False)
         dataset_multi_test = dataset_cls_multi('test', cfg.t_his, cfg.t_pred,
                                                data_path=cfg.data_path,
                                                include_spot=cfg.include_spot,
+                                               spot_joint_indices=cfg.harper_spot_joint_indices,
                                                fps=cfg.fps,
                                                multimodal_path=cfg.multimodal_path,
                                                data_candi_path=cfg.data_candi_path)
@@ -131,6 +123,13 @@ def dataset_split(cfg):
             data_path=cfg.data_path,
             include_robot=cfg.include_robot,
             exclude_crash=cfg.chico_exclude_crash,
+            use_data_aug=cfg.use_data_aug,
+            aug_rotate_prob=cfg.aug_rotate_prob,
+            aug_reverse_prob=cfg.aug_reverse_prob,
+        )
+        dataset_val = dataset_cls(
+            'val', cfg.t_his, cfg.t_pred, actions='all', data_path=cfg.data_path,
+            include_robot=cfg.include_robot, exclude_crash=cfg.chico_exclude_crash,
         )
         dataset_test = dataset_cls(
             'test',
@@ -151,6 +150,7 @@ def dataset_split(cfg):
             data_candi_path=cfg.data_candi_path,
             exclude_crash=cfg.chico_exclude_crash,
         )
+        return {'train': dataset, 'val': dataset_val, 'test': dataset_test}, dataset_multi_test
     elif cfg.dataset == 'comad':
         comad_test_if = getattr(cfg, 'comad_test_interactions', None)
         dataset = dataset_cls('train', cfg.t_his, cfg.t_pred, actions='all',
@@ -255,6 +255,7 @@ def dataset_split(cfg):
             data_path=cfg.data_path,
             scene_filter=cmu_scene,
             file_filter=cmu_file,
+            person_joint_num=cfg.cmu_person_joint_num,
             use_data_aug=cfg.use_data_aug,
             aug_rotate_prob=cfg.aug_rotate_prob,
             aug_reverse_prob=cfg.aug_reverse_prob,
@@ -267,6 +268,7 @@ def dataset_split(cfg):
             data_path=cfg.data_path,
             scene_filter=cmu_scene,
             file_filter=cmu_file,
+            person_joint_num=cfg.cmu_person_joint_num,
             use_data_aug=False,
         )
         dataset_multi_test = dataset_cls_multi(
@@ -276,6 +278,7 @@ def dataset_split(cfg):
             data_path=cfg.data_path,
             scene_filter=cmu_scene,
             file_filter=cmu_file,
+            person_joint_num=cfg.cmu_person_joint_num,
             multimodal_path=cfg.multimodal_path,
             data_candi_path=cfg.data_candi_path,
         )
@@ -293,20 +296,28 @@ def get_multimodal_gt_full(logger, dataset_multi_test, args, cfg):
     for data, _ in data_gen_multi_test:
         num_samples += 1
         data_group.append(data)
+    if not data_group:
+        raise ValueError('No complete evaluation windows for the configured observation/prediction horizons.')
     data_group = np.concatenate(data_group, axis=0)
     all_data, _ = get_position_inputs(data_group, cfg)
     gt_group = all_data[:, cfg.t_his:, :]
 
+    if args.multimodal_threshold <= 0:
+        raise ValueError('multimodal_threshold must be positive (the query itself is a neighbor).')
+    # Protocol: Euclidean distance of flattened target joints at the LAST
+    # observed frame. No skeleton scaling or multiple-history matching.
     all_start_pose = all_data[:, cfg.t_his - 1, :]
     pd = squareform(pdist(all_start_pose))
     traj_gt_arr = []
     num_mult = []
+    neighbor_indices = []
     for i in tqdm(
         range(pd.shape[0]),
         desc='Eval prep: multimodal neighbors',
         unit='seq',
     ):
         ind = np.nonzero(pd[i] < args.multimodal_threshold)
+        neighbor_indices.append(ind[0])
         traj_gt_arr.append(all_data[ind][:, cfg.t_his:, :])
         num_mult.append(len(ind[0]))
     num_mult = np.array(num_mult)
@@ -319,6 +330,9 @@ def get_multimodal_gt_full(logger, dataset_multi_test, args, cfg):
     return {'traj_gt_arr': traj_gt_arr,
             'data_group': data_group,
             'gt_group': gt_group,
+            'neighbor_indices': neighbor_indices,
+            'window_ids': list(dataset_multi_test.iter_window_ids(step=cfg.t_his))
+                if hasattr(dataset_multi_test, 'iter_window_ids') else list(range(num_samples)),
             'num_samples': num_samples}
 
 

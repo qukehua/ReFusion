@@ -18,10 +18,9 @@ n_pre: 100  # full P-frame future DCT spectrum (Eq. 8)
 weight_decay: 0.01  # AdamW; explicitly disclosed implementation choice
 adam_betas: [0.9, 0.999]
 adam_eps: 1.e-8
-# tuned thresholds for ~20% multimodal windows on test/walking/walking_1:
-# thre_his=30, thre_pred=100 -> 2/12 = 16.7%
-multimodal_path: '/data/user/qkh/datasets/cmu_mocap/multimodal/t_his25_cmu_mocap_test_walking_walking_1_thre30.000_t_pred100_thre100.000_filtered.npz'
-data_candi_path: '/data/user/qkh/datasets/cmu_mocap/multimodal/data_candi_cmu_mocap_test_walking_walking_1_t_his25_t_pred100_skiprate20.npz'
+# Evaluation constructs neighbors from loaded test windows; no legacy cache is read.
+multimodal_path: null
+data_candi_path: null
 padding: 'LastFrame'
 Complete: False  # observations are conditions only; no inpainting
 noise_steps: 1000
@@ -42,7 +41,7 @@ dct_norm_enable: False
 disable_tensorboard: True
 use_data_aug: True
 aug_rotate_prob: 0.5
-aug_reverse_prob: 0.2
+aug_reverse_prob: 0.3
 use_velocity_input: False
 velocity_loss_weight: 0.0
 
@@ -57,12 +56,11 @@ vis_axis_padding: 0.25
 vis_line_width: 1.5
 vis_title_fontsize: 16
 
-# CMU single-scene setup:
-# - keep only one action folder as one scene (walking)
-# - keep only one clip id (walking_1)
-# - loader generates Person_2 from Person_1 to keep two-character setting.
-cmu_scene_filter: 'walking'
-cmu_file_filter: 'walking_1'
+# Recorded synchronized pairs only: train|test/<scene>/<pair>.npz.
+# Each archive contains person_1 and person_2, both [frames, 39, 3] in meters.
+# Single-person TXT files and generated partners are not accepted.
+cmu_scene_filter: null
+cmu_file_filter: null
 cmu_total_joint_num: 78
 
 data_path: '/data/user/qkh/datasets/cmu_mocap'
