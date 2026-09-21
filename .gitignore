@@ -12,5 +12,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 tmp/
+tests/
+docs/
 # Dataset loaders remain private until the authors choose to release them.
 data_loader/
