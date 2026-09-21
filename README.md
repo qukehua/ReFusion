@@ -26,20 +26,11 @@ CPU suite does not validate GPU speed, memory use, or final prediction quality.
 
 ### 2. Datasets
 
-Training/evaluation require the authors' private `data_loader/` sources and the
-corresponding dataset. Set the dataset root with `--data_path` or its YAML setting.
-HARPER uses 21 human and 21 retained Spot points. The authors confirmed that their
-raw 23-point Spot arrays exclude camera-related points 21/22; both frame-rate
-configurations retain indices 0..20. Loading and preprocessing apply this same
-selection before centering, augmentation, or DCT. The model predicts 20 non-root
-human joints and conditions on those 20 plus 21 Spot points. Other raw array sizes
-are rejected to prevent silent index shifts. Upstream labels 21/22 as wrist/hand;
-the [node audit](docs/harper_joint_definition_audit.md) distinguishes those labels
-from the authors' terminology and input subset.
-CHICO uses 15 human and 9 robot
-joints, and the current CoMaD configuration is HR-only. 3DPW conditions on the
-recorded second person. CMU human-human evaluation requires recorded synchronized
-pairs; single-person TXT clips are not converted into artificial interactions.
+- [HARPER](https://intelligolabs.github.io/HARPER/)
+- [CHICO](https://github.com/AlessioSam/CHICO-PoseForecasting)
+- [CoMaD](https://github.com/portal-cornell/comad)
+- [3DPW](https://virtualhumans.mpi-inf.mpg.de/3DPW/)
+- [CMU Mocap](http://mocap.cs.cmu.edu/)
 
 ## ⏳ To Training
 
